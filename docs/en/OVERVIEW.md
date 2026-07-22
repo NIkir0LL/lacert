@@ -63,8 +63,8 @@ Each step, along with frame and field layouts, is described in
 ## Key research result
 
 The hypothesis that a post-quantum signature (SLH-DSA) would pay off was not
-confirmed: its signing is roughly 11,000× slower than ECDSA (hundreds of
-milliseconds) and its signatures are about 110× larger (7,856 bytes against 71).
+confirmed: its signing is roughly 9,300× slower than ECDSA (hundreds of
+milliseconds against tens of microseconds, see MEASUREMENTS) and its signatures are about 110× larger (7,856 bytes against 71).
 The conclusion: **post-quantum strength is placed on key exchange (ML-KEM-1024),
 while the signature stays with ECDSA P-256.** The system supports both signature
 algorithms (switchable through `SigAlgorithm`), but ECDSA is the default and is
