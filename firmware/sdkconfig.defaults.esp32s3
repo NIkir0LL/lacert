@@ -1,0 +1,11 @@
+# XIAO ESP32-S3 и ESP32-S3-DevKitC-1 (Xtensa, 240 МГц, два ядра).
+CONFIG_IDF_TARGET="esp32s3"
+
+# У S3 аппаратного ускорителя ECC НЕТ (в отличие от C6) — ECDSA считается
+# программно, поэтому подпись заметно дороже. Ускорители больших чисел (MPI) и
+# SHA включены в общем sdkconfig.defaults.
+
+# Для ESP32-S3-N8R2 (8 МБ флеша + 2 МБ PSRAM) можно включить PSRAM:
+# CONFIG_SPIRAM=y
+# CONFIG_SPIRAM_MODE_QUAD=y
+# CONFIG_SPIRAM_SPEED_80M=y

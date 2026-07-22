@@ -1,0 +1,21 @@
+[Unit]
+Description=LACERT gatewayd (IoT-шлюз: TCP/REST/MQTT)
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=lacert
+Group=lacert
+EnvironmentFile=/etc/lacert/gatewayd.env
+ExecStart=/opt/lacert/bin/gatewayd
+Restart=on-failure
+RestartSec=2
+# Защитные ограничения — gatewayd не нуждается ни в чём из перечисленного.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,856 @@
+/* LACERT — панель шлюза.
+   Дизайн-идея: пульт управления / консоль осциллографа, а не типичная
+   SaaS-панель. Контент здесь по сути и есть Serial-вывод устройства
+   (hex-ключи, ID, контрольные суммы) — поэтому монопространственный шрифт
+   используется не как декоративный приём, а потому что он буквально
+   повторяет то, что админ читает с терминала устройства.
+
+   Шрифты — только системные (ui-monospace/ui-sans-serif): инструмент
+   рассчитан на изолированные корпоративные сети без доступа в интернет,
+   так что никаких внешних подключений к CDN со шрифтами быть не должно. */
+
+:root {
+  --bg: #14161b;
+  --panel: #1b1e25;
+  --panel-raised: #21242c;
+  --border: #2a2e38;
+  --border-strong: #3a3f4b;
+
+  --text: #e8e6e1;
+  --text-dim: #9a9ca5;
+  --text-faint: #6b6e78;
+
+  --amber: #d98e3b;
+  --amber-dim: #8a5e2a;
+  --green: #5fb87a;
+  --red: #d9636b;
+  --teal: #4fa8c9;
+
+  --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", monospace;
+  --font-body: ui-sans-serif, "Segoe UI", Roboto, system-ui, sans-serif;
+
+  --radius: 3px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+code, .mono { font-family: var(--font-mono); }
+
+button, input, textarea, select {
+  font-family: var(--font-mono);
+  font-size: inherit;
+  color: var(--text);
+}
+
+/* ---------- topbar ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.topbar-left { display: flex; align-items: baseline; gap: 10px; }
+
+.brand-mark {
+  width: 9px;
+  height: 9px;
+  background: var(--amber);
+  display: inline-block;
+  border-radius: 1px;
+  box-shadow: 0 0 8px var(--amber-dim);
+}
+
+.brand-name {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-size: 15px;
+}
+
+.brand-sub {
+  color: var(--text-faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.topbar-right { display: flex; align-items: center; gap: 14px; }
+
+/* ---------- top nav ---------- */
+
+.topnav { display: flex; gap: 4px; }
+.nav-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-transform: lowercase;
+}
+.nav-btn:hover { color: var(--text-dim); border-color: var(--border); }
+.nav-btn.active { color: var(--amber); border-color: var(--amber-dim); background: rgba(217, 142, 59, 0.08); }
+
+.view.hidden { display: none !important; }
+
+/* ---------- monitoring: range bar ---------- */
+
+.range-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.range-buttons { display: flex; gap: 4px; }
+.range-btn { border-radius: var(--radius); }
+.range-btn.active { border-color: var(--amber); color: var(--amber); }
+.range-custom { display: flex; align-items: center; gap: 6px; }
+.range-custom .mono-input.small { width: 170px; padding: 5px 8px; }
+
+/* ---------- monitoring: выбор устройств ---------- */
+
+/* Панель выбора устройств флажками. Заменила выпадающий список, который
+   позволял смотреть либо одно устройство, либо сразу все, без промежуточных
+   вариантов. */
+.dev-pick {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-raised);
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.dev-pick-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.dev-pick-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-right: auto;
+}
+.dev-pick-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dev-pick-empty {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* Каждое устройство — кнопка-флажок. Настоящий input скрыт, но остаётся в
+   документе: он несёт состояние и обеспечивает работу с клавиатуры. */
+.dev-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.dev-chip:hover { border-color: var(--amber-dim); color: var(--text); }
+.dev-chip input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+/* Рамка вокруг всей кнопки при переходе табуляцией — иначе фокус не виден,
+   поскольку сам input скрыт. */
+.dev-chip:focus-within {
+  outline: 2px solid var(--teal);
+  outline-offset: 1px;
+}
+.dev-chip .dev-chip-box {
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--border-strong);
+  border-radius: 2px;
+  flex-shrink: 0;
+  position: relative;
+}
+.dev-chip.checked {
+  border-color: var(--amber);
+  color: var(--amber);
+  background: rgba(217, 142, 59, 0.08);
+}
+.dev-chip.checked .dev-chip-box {
+  border-color: var(--amber);
+  background: var(--amber);
+}
+/* Галочка рисуется двумя гранями повёрнутого прямоугольника. */
+.dev-chip.checked .dev-chip-box::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 0px;
+  width: 3px;
+  height: 6px;
+  border: solid var(--bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.dev-pick-summary {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+@media (max-width: 560px) {
+  .dev-pick-head { flex-wrap: wrap; }
+  .dev-pick-label { width: 100%; margin-bottom: 4px; }
+}
+
+/* ---------- monitoring: charts ---------- */
+
+.charts-grid {
+  display: grid;
+  /* --chart-h задаёт высоту SVG-графика; от неё же считается резерв высоты
+     карточки (min-height ниже). Меняется переключателем размера графиков. */
+  --chart-h: 240px;
+  grid-template-columns: repeat(auto-fit, minmax(480px, 1fr));
+  gap: 18px;
+  padding: 18px;
+}
+
+/* На широких мониторах (напр. 2560px) при узких колонках графики получались
+   слишком сжатыми: помещалось 5-6 штук в ряд. Даём колонкам больше ширины. */
+@media (min-width: 1800px) {
+  .charts-grid {
+    grid-template-columns: repeat(auto-fit, minmax(620px, 1fr));
+  }
+}
+
+/* Размеры графиков — переключатель на панели периода. */
+.charts-grid.size-l {
+  --chart-h: 300px;
+  grid-template-columns: repeat(auto-fit, minmax(760px, 1fr));
+}
+.charts-grid.size-xl {
+  --chart-h: 380px;
+  grid-template-columns: 1fr; /* один график во всю ширину */
+}
+.chart-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-raised);
+  padding: 12px 14px 8px;
+  /* Фиксированная минимальная высота критична для устранения "прыжка
+     скролла вверх" при периодическом обновлении дашборда (см. подробный
+     комментарий в app.js, renderMonitoring). Карточка строится в два
+     прохода: сначала ВСЕ карточки-контейнеры добавляются в DOM (ещё без
+     SVG-графика внутри), затем вторым проходом в каждую вставляется сам
+     график. Без этой фиксированной высоты карточка "до графика" (только
+     заголовок h3) заметно ниже, чем "после" (заголовок + SVG 220px +
+     легенда) — то есть высота ВСЕЙ страницы плавно растёт в течение
+     второго прохода. Чтение container.clientWidth внутри renderLineChart
+     (нужно для адаптивной ширины SVG) форсирует синхронный reflow браузера
+     на каждой итерации, и самый первый такой reflow происходит, когда
+     остальные карточки ещё "пустые" — то есть суммарная высота документа
+     на этот момент временно меньше финальной. Если пользователь успел
+     проскроллить ниже этой временной высоты, браузer немедленно (синхронно,
+     в момент самого reflow) подтягивает scroll вверх — и после того как
+     карточки достраиваются, scroll не восстанавливается автоматически.
+     Резервируя высоту заранее, карточка занимает своё финальное место в
+     layout сразу же, ещё до того как в неё попадёт SVG. */
+  min-height: calc(var(--chart-h, 240px) + 72px);
+}
+.chart-card h3 {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+.chart-svg-wrap { position: relative; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; font-size: 11px; color: var(--text-dim); }
+.chart-legend .swatch { display: inline-block; width: 8px; height: 8px; border-radius: 1px; margin-right: 5px; vertical-align: -1px; }
+.chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 6px 9px;
+  font-size: 11px;
+  white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+  display: none;
+  z-index: 5;
+}
+.chart-empty { color: var(--text-faint); font-family: var(--font-body); font-size: 12px; padding: 30px 0; text-align: center; }
+
+/* ---------- telemetry box (device drawer) ---------- */
+
+.telemetry-box {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--panel-raised);
+  padding: 10px 12px;
+  font-size: 12px;
+}
+.telemetry-raw { color: var(--text-dim); margin-bottom: 8px; word-break: break-all; }
+.telemetry-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.telemetry-chip {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--teal);
+}
+.telemetry-chip b { color: var(--text); font-weight: 600; }
+.telemetry-time { color: var(--text-faint); font-size: 10.5px; margin-top: 8px; }
+
+/* ---------- info banner ---------- */
+
+.banner-info {
+  background: rgba(79, 168, 201, 0.08);
+  border: 1px solid var(--teal);
+  color: #a9d7e6;
+}
+
+.fingerprint {
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.conn-indicator { font-size: 10px; }
+.conn-ok { color: var(--green); }
+.conn-bad { color: var(--red); }
+.conn-unknown { color: var(--text-faint); }
+
+/* ---------- layout / panel ---------- */
+
+.layout { padding: clamp(14px, 2.4vw, 26px) clamp(14px, 3vw, 32px); max-width: 1440px; margin: 0 auto; }
+
+/* На широких мониторах (2560px и т.п.) лимит в 1440px оставлял больше трети
+   экрана пустой, из-за чего графики выходили тесными. Даём разметке больше
+   ширины — таблицы и графики становятся заметно читабельнее. */
+@media (min-width: 1700px) { .layout { max-width: 1900px; } }
+@media (min-width: 2200px) { .layout { max-width: 2360px; } }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-head h1 {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin: 0;
+  color: var(--text-dim);
+}
+/* Device ID встраиваются в заголовки (h1/h2) для контекста, но сами
+   идентификаторы регистрозависимы — uppercase от заголовка на них не
+   должен распространяться. */
+.panel-head h1 #mon-history-device,
+.drawer-head h2 #events-device-id {
+  text-transform: none;
+}
+
+.panel-head-actions { display: flex; align-items: center; gap: 10px; }
+
+.muted { color: var(--text-faint); font-size: 12px; }
+
+/* ---------- buttons ---------- */
+
+.btn {
+  border: 1px solid var(--border-strong);
+  background: var(--panel-raised);
+  color: var(--text);
+  padding: 7px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.btn:hover { border-color: var(--text-dim); }
+.btn:active { transform: translateY(1px); }
+
+.btn-primary {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #1a1300;
+  font-weight: 600;
+}
+.btn-primary:hover { background: #e69d4c; border-color: #e69d4c; }
+
+.btn-ghost { background: transparent; border-color: var(--border); color: var(--text-dim); }
+.btn-ghost:hover { color: var(--text); }
+
+.btn-sm { padding: 4px 10px; font-size: 11.5px; }
+.btn-block { width: 100%; margin-top: 14px; }
+
+/* ---------- table ---------- */
+
+.device-table { width: 100%; border-collapse: collapse; }
+.device-table th {
+  text-align: left;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  font-weight: 500;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.device-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+  vertical-align: middle;
+}
+.device-table tbody tr { cursor: pointer; }
+.device-table tbody tr:hover { background: var(--panel-raised); }
+.col-status { width: 28px; }
+.col-actions { width: 90px; }
+
+.status-dot { font-size: 10px; display: inline-block; }
+.status-online { color: var(--green); }
+.status-offline { color: var(--text-faint); }
+.status-revoked { color: var(--red); }
+
+.badge {
+  display: inline-block;
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  color: var(--teal);
+  letter-spacing: 0.02em;
+}
+
+.device-id-cell { font-weight: 600; }
+.dim-cell { color: var(--text-faint); }
+
+.row-revoke-btn {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--red);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.row-revoke-btn:hover { background: rgba(217, 99, 107, 0.12); }
+.row-revoke-btn:disabled { opacity: 0.35; cursor: default; }
+
+.empty-state {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-faint);
+  font-family: var(--font-body);
+}
+
+/* ---------- banner ---------- */
+
+.banner {
+  margin: 14px 18px 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.banner-warn {
+  background: rgba(217, 142, 59, 0.1);
+  border: 1px solid var(--amber-dim);
+  color: #f0c896;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- overlay / drawer ---------- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 9, 11, 0.6);
+  z-index: 40;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: min(440px, 92vw);
+  background: var(--panel);
+  border-left: 1px solid var(--border-strong);
+  z-index: 50;
+  padding: 20px 22px 28px;
+  overflow-y: auto;
+  box-shadow: -12px 0 30px rgba(0,0,0,0.35);
+}
+.drawer-narrow { width: min(380px, 92vw); }
+
+.drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.drawer-head h2 {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.drawer-hint {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  color: var(--text-dim);
+  line-height: 1.55;
+  margin: 0 0 16px;
+}
+.drawer-hint code {
+  background: var(--panel-raised);
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 11px;
+}
+
+.field-label {
+  display: block;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+  margin: 14px 0 5px;
+}
+
+/* Пояснение под полем формы: набрано мельче подписи поля и приглушённым цветом,
+   чтобы читалось как справка, а не как часть вводимых данных. */
+.field-hint {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  margin: 6px 0 0;
+}
+
+.mono-input {
+  width: 100%;
+  background: var(--panel-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  font-size: 12px;
+  resize: vertical;
+}
+.mono-input:focus { outline: none; border-color: var(--amber); }
+.mono-input.small { font-size: 11px; }
+
+.field-divider {
+  margin: 18px 0 4px;
+  text-align: center;
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--text-faint);
+  position: relative;
+}
+.field-divider::before, .field-divider::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 38%;
+  border-top: 1px solid var(--border);
+}
+.field-divider::before { left: 0; }
+.field-divider::after { right: 0; }
+
+.form-error {
+  margin-top: 12px;
+  padding: 8px 10px;
+  background: rgba(217, 99, 107, 0.1);
+  border: 1px solid var(--red);
+  border-radius: var(--radius);
+  color: #f0a8ac;
+  font-family: var(--font-body);
+  font-size: 12px;
+}
+
+.events-list { list-style: none; margin: 0; padding: 0; }
+.events-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.events-list .evt-type {
+  color: var(--amber);
+  font-weight: 600;
+  margin-right: 8px;
+}
+.events-list .evt-time {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  display: block;
+  margin-top: 2px;
+}
+.events-empty { color: var(--text-faint); font-family: var(--font-body); padding: 8px 0; }
+
+/* ---------- toast ---------- */
+
+.toast {
+  position: fixed;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--panel-raised);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  padding: 10px 18px;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  font-family: var(--font-body);
+  z-index: 60;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+.toast.toast-error { border-color: var(--red); color: #f0a8ac; }
+.toast.toast-ok { border-color: var(--green); color: #b6e8c4; }
+
+/* ---- Метрики ---- */
+.metrics-group-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-dim);
+  margin: 22px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.metrics-group-title:first-of-type { margin-top: 8px; }
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.metric-card {
+  background: var(--panel-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 8px;
+  min-height: 96px;
+}
+.metric-value {
+  font-family: var(--font-mono);
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1;
+}
+.metric-label {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+/* Красный акцент для «тревожных» счётчиков, но только когда значение > 0
+   (класс metric-hot добавляется из JS). */
+.metric-accent-danger.metric-hot { border-color: var(--amber-dim); }
+.metric-accent-danger.metric-hot .metric-value { color: var(--amber); }
+
+/* ======================================================================
+   Визуальная доводка + адаптивность (автоматический размер под окно).
+   Концепция «консоли/пульта» сохранена: те же токены, моношрифт, амбер-
+   акценты, тёмная тема, без внешних CDN. Здесь только полировка глубины,
+   плавность и поведение layout на узких экранах (планшет/телефон).
+   ====================================================================== */
+
+/* --- лёгкая глубина панелей и карточек (в духе приборной консоли) --- */
+.panel {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.02) inset,
+              0 2px 10px rgba(0, 0, 0, 0.25);
+}
+.metric-card,
+.chart-card {
+  transition: border-color 0.14s ease, transform 0.14s ease, box-shadow 0.14s ease;
+}
+.metric-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+}
+.chart-card:hover { border-color: var(--border-strong); }
+
+/* тонкая верхняя амбер-линия у «живых» карточек метрик при ненулевом
+   тревожном значении — усиливает сигнал, не ломая сетку */
+.metric-accent-danger.metric-hot {
+  box-shadow: 0 -2px 0 var(--amber) inset;
+}
+
+/* аккуратные фокус-состояния для доступности (клавиатурная навигация) */
+.btn:focus-visible,
+.nav-btn:focus-visible,
+.mono-input:focus-visible {
+  outline: 2px solid var(--amber-dim);
+  outline-offset: 1px;
+}
+
+/* плавная смена активной вкладки */
+.nav-btn { transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease; }
+
+/* таблицы: горизонтальная прокрутка вместо «распирания» страницы на узких
+   экранах. Оборачивающий блок .table-scroll добавляется вокруг таблиц. */
+.table-scroll { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ---------- Планшеты и узкие окна (<= 900px) ---------- */
+@media (max-width: 900px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    padding: 10px 16px;
+  }
+  /* навигация переносится на всю ширину строкой ниже бренда */
+  .topnav { order: 3; width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  .topbar-right { margin-left: auto; }
+
+  .charts-grid { grid-template-columns: 1fr; gap: 14px; padding: 14px; }
+  .range-bar { padding: 12px 14px; }
+  .range-custom .mono-input.small { width: 140px; }
+}
+
+/* ---------- Телефоны (<= 560px) ---------- */
+@media (max-width: 560px) {
+  html, body { font-size: 12.75px; }
+
+  .brand-sub { display: none; }               /* экономим место в шапке */
+  .fingerprint { display: none; }
+
+  .panel-head {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 14px;
+  }
+  .panel-head-actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+
+  /* кнопки чуть крупнее по вертикали — удобнее для касания */
+  .btn { padding: 8px 13px; }
+  .btn-sm { padding: 6px 10px; }
+
+  .metrics-grid { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .metric-value { font-size: 1.55rem; }
+
+  .range-bar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .range-buttons { flex-wrap: wrap; }
+  .range-custom { flex-wrap: wrap; }
+  .range-custom .mono-input.small { width: 100%; }
+
+  /* таблицы: уменьшаем внутренние отступы, чтобы влезало больше колонок */
+  .device-table th, .device-table td { padding: 9px 10px; }
+}
+
+/* ---------- Очень узкие экраны (<= 380px) ---------- */
+@media (max-width: 380px) {
+  .layout { padding: 10px; }
+  .nav-btn { padding: 6px 9px; font-size: 11px; }
+}
+
+/* ---------- Уважение к prefers-reduced-motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+  .metric-card:hover { transform: none; }
+}
+
+
+/* --- Переключатель размера графиков (вкладка «Мониторинг») --- */
+.chart-size {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.chart-size-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.size-btn.active {
+  background: var(--accent-soft, rgba(90, 150, 240, 0.16));
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+
+/* --- Вкладка «Проверки целостности прошивки» --- */
+.fw-summary {
+  display: flex;
+  gap: 14px;
+  padding: 14px 18px 0;
+}
+.fw-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel-raised);
+  min-width: 110px;
+}
+.fw-stat-num {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.fw-stat-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.fw-stat-ok .fw-stat-num { color: var(--ok, #46c17f); }
+.fw-stat-bad .fw-stat-num { color: var(--danger, #e5534b); }
+
+.fw-ok { color: var(--ok, #46c17f); }
+.fw-bad { color: var(--danger, #e5534b); font-weight: 600; }

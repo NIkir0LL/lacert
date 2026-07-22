@@ -1,0 +1,46 @@
+# --- Общие настройки для всех плат ---
+
+# ML-KEM-1024 требует заметного стека при декапсуляции/генерации ключей.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=24576
+
+# --- Таблица разделов ---
+# Штатный раздел приложения (1 МБ) прошивке уже мал: с ML-KEM, BLAKE3, mbedTLS и
+# WiFi она перевалила за 1 МБ (на C6 сборка падала с "app partition is too
+# small"). Своя таблица даёт 2 МБ под приложение — см. partitions.csv.
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# --- Оптимизация ---
+# ВАЖНО ДЛЯ ЗАМЕРОВ. По умолчанию ESP-IDF собирает с -Og (отладочная сборка без
+# оптимизации). На ней криптография работает в разы медленнее, чем в реальной
+# прошивке, и измеренные цифры получаются несправедливо плохими. -Os даёт
+# компактный и быстрый код: и раздел не переполняется, и замеры честные.
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# --- mbedTLS: примитивы протокола ---
+# ChaCha20-Poly1305 в ESP-IDF выключен по умолчанию, и опция CHACHAPOLY зависит
+# от POLY1305, а та — от CHACHA20. Если включить только CHACHAPOLY, Kconfig
+# молча её отбросит, и линковка упадёт с "undefined reference to
+# mbedtls_chachapoly_*". Поэтому включаем все три.
+CONFIG_MBEDTLS_CHACHA20_C=y
+CONFIG_MBEDTLS_POLY1305_C=y
+CONFIG_MBEDTLS_CHACHAPOLY_C=y
+CONFIG_MBEDTLS_ECDSA_C=y
+CONFIG_MBEDTLS_ECP_DP_SECP256R1_ENABLED=y
+
+# --- Аппаратное ускорение криптографии ---
+# У ESP32-S3/C6 есть блок ускорения операций с большими числами (MPI) и SHA.
+# Без них ECDSA считается чисто программно, и подпись занимает сотни
+# миллисекунд. С ними — заметно быстрее. Для замеров это принципиально.
+CONFIG_MBEDTLS_HARDWARE_MPI=y
+CONFIG_MBEDTLS_HARDWARE_SHA=y
+CONFIG_MBEDTLS_HARDWARE_AES=y
+# Оптимизированная арифметика для кривых NIST (в т.ч. P-256).
+CONFIG_MBEDTLS_ECP_NIST_OPTIM=y
+
+# HTTP-клиент для регистрации на шлюзе (HTTPS не нужен — локальная сеть)
+CONFIG_ESP_HTTP_CLIENT_ENABLE_HTTPS=n
+
+CONFIG_NVS_ASSERT_ERROR_CHECK=n
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y

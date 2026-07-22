@@ -1,0 +1,27 @@
+# Go
+/vendor/
+# Ведущий слэш обязателен: без него паттерн gatewayd исключал бы ЛЮБОЙ файл
+# или каталог с таким именем в дереве, в том числе исходники cmd/gatewayd/ —
+# и опубликованный сервис оставался без главного бинарника. /gatewayd
+# исключает только скомпилированный бинарник в корне репозитория.
+/gatewayd
+*.exe
+*.test
+*.out
+*.prof
+
+# firmware (own code kept, third-party components fetched separately)
+firmware/build/
+firmware/sdkconfig
+firmware/components/ml_kem/
+firmware/components/blake3/
+
+# local config & secrets
+*.env
+.env
+*.local
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store

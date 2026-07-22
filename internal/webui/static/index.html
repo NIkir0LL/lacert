@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LACERT — панель шлюза</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">LACERT</span>
+    <span class="brand-sub">postquantum iot gateway</span>
+  </div>
+  <nav class="topnav" id="topnav">
+    <button class="nav-btn active" data-view="devices">устройства</button>
+    <button class="nav-btn" data-view="monitoring">мониторинг</button>
+    <button class="nav-btn" data-view="rotations">журнал ротаций</button>
+    <button class="nav-btn" data-view="firmware">проверки прошивки</button>
+    <button class="nav-btn" data-view="metrics">метрики</button>
+  </nav>
+  <div class="topbar-right">
+    <span id="gw-fingerprint" class="fingerprint" title="Публичный ключ ML-KEM-1024 шлюза">gw: —</span>
+    <span id="conn-indicator" class="conn-indicator conn-unknown" title="Связь с REST API">●</span>
+    <button id="token-btn" class="btn btn-ghost">токен</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <!-- ===================== ВИД: УСТРОЙСТВА ===================== -->
+  <section class="view" id="view-devices">
+    <section class="panel devices-panel">
+      <div class="panel-head">
+        <h1>Устройства</h1>
+        <div class="panel-head-actions">
+          <span id="device-count" class="muted"></span>
+          <button id="refresh-btn" class="btn btn-ghost" title="Обновить список">↻</button>
+          <button id="register-btn" class="btn btn-primary">+ зарегистрировать</button>
+        </div>
+      </div>
+
+      <div id="auth-banner" class="banner banner-warn hidden">
+        REST API защищён токеном — введите его, чтобы увидеть список устройств.
+        <button id="auth-banner-btn" class="btn btn-ghost btn-sm">ввести токен</button>
+      </div>
+
+      <div id="empty-state" class="empty-state hidden">
+        Устройств пока нет. Зарегистрируйте первое — кнопка выше.
+      </div>
+
+      <div class="table-scroll">
+      <table class="device-table" id="device-table">
+        <thead>
+          <tr>
+            <th class="col-status"></th>
+            <th>device id</th>
+            <th>алгоритм</th>
+            <th>статус</th>
+            <th>последнее сообщение</th>
+            <th>последний раз на связи</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="device-rows"></tbody>
+      </table>
+      </div>
+    </section>
+  </section>
+
+  <!-- ===================== ВИД: МОНИТОРИНГ ===================== -->
+  <section class="view hidden" id="view-monitoring">
+    <section class="panel">
+      <div class="panel-head">
+        <h1>Мониторинг</h1>
+        <div class="panel-head-actions">
+            <span class="dev-pick-summary" id="mon-device-summary">все устройства</span>
+          </div>
+        </div>
+
+        <!-- Выбор устройств флажками. Ни одно не отмечено — показываются все;
+             отмечено несколько — только они. -->
+        <div class="dev-pick" id="mon-device-pick">
+          <div class="dev-pick-head">
+            <span class="dev-pick-label">Устройства</span>
+            <button class="btn btn-ghost btn-sm" id="mon-dev-all" type="button">выбрать все</button>
+            <button class="btn btn-ghost btn-sm" id="mon-dev-none" type="button">сбросить</button>
+          </div>
+          <div class="dev-pick-list" id="mon-device-checks"></div>
+        </div>
+
+      <div class="range-bar">
+        <div class="range-buttons" id="range-buttons">
+          <button class="btn btn-ghost btn-sm range-btn" data-range="30m">30 мин</button>
+          <button class="btn btn-ghost btn-sm range-btn active" data-range="1h">1 час</button>
+          <button class="btn btn-ghost btn-sm range-btn" data-range="6h">6 часов</button>
+          <button class="btn btn-ghost btn-sm range-btn" data-range="12h">12 часов</button>
+          <button class="btn btn-ghost btn-sm range-btn" data-range="24h">24 часа</button>
+        </div>
+        <div class="chart-size">
+          <span class="chart-size-label">Графики</span>
+          <button class="btn btn-ghost btn-sm size-btn active" data-size="m">обычные</button>
+          <button class="btn btn-ghost btn-sm size-btn" data-size="l">крупные</button>
+          <button class="btn btn-ghost btn-sm size-btn" data-size="xl">во всю ширину</button>
+        </div>
+
+        <div class="range-custom">
+          <input type="datetime-local" id="range-since" class="mono-input small">
+          <span class="muted">—</span>
+          <input type="datetime-local" id="range-until" class="mono-input small">
+          <button id="range-apply" class="btn btn-ghost btn-sm">применить</button>
+        </div>
+        <button id="mon-refresh" class="btn btn-ghost btn-sm" title="Обновить">↻</button>
+      </div>
+
+      <div id="mon-empty" class="empty-state hidden">
+        Телеметрии за выбранный период нет. Если устройства недавно
+        подключились — попробуйте увеличить период или подождите немного.
+      </div>
+
+      <div id="mon-charts" class="charts-grid"></div>
+    </section>
+
+    <section class="panel hidden" id="mon-history-panel">
+      <div class="panel-head">
+        <h1>История пакетов — <span id="mon-history-device" class="mono"></span></h1>
+        <span id="mon-history-count" class="muted"></span>
+      </div>
+      <div class="table-scroll">
+      <table class="device-table" id="mon-history-table">
+        <thead>
+          <tr><th>время</th><th>сырые данные</th></tr>
+        </thead>
+        <tbody id="mon-history-rows"></tbody>
+      </table>
+      </div>
+    </section>
+  </section>
+
+  <!-- ===================== ВИД: ЖУРНАЛ РОТАЦИЙ ===================== -->
+  <section class="view hidden" id="view-rotations">
+    <section class="panel">
+      <div class="panel-head">
+        <h1>Журнал ротаций ключей</h1>
+        <div class="panel-head-actions">
+          <select class="mono-input" id="rot-device-select">
+            <option value="">все устройства</option>
+          </select>
+          <button id="rot-refresh" class="btn btn-ghost" title="Обновить">↻</button>
+        </div>
+      </div>
+
+      <div id="rot-mode-banner" class="banner banner-warn hidden">
+        <span>ТЕСТОВЫЙ РЕЖИМ: журнал содержит полные значения сеансовых ключей
+        (<code>LACERT_LOG_SESSION_KEYS=true</code>). В продакшене выключите
+        эту переменную — ключи будут скрыты.</span>
+      </div>
+      <div id="rot-mode-banner-off" class="banner banner-info hidden">
+        <span>Тестовый режим выключен — значения ключей скрыты. Чтобы видеть их
+        полностью для отладки, задайте на шлюзе <code>LACERT_LOG_SESSION_KEYS=true</code>.</span>
+      </div>
+
+      <div id="rot-empty" class="empty-state hidden">Записей пока нет.</div>
+
+      <div class="table-scroll">
+      <table class="device-table" id="rot-table">
+        <thead>
+          <tr>
+            <th class="col-status"></th>
+            <th>время</th>
+            <th>device id</th>
+            <th>инициатор</th>
+            <th>№ ротации</th>
+            <th>старый ключ</th>
+            <th>новый ключ</th>
+          </tr>
+        </thead>
+        <tbody id="rot-rows"></tbody>
+      </table>
+      </div>
+    </section>
+  </section>
+
+  <section class="view hidden" id="view-firmware">
+    <section class="panel">
+      <div class="panel-head">
+        <h1>Проверки целостности прошивки</h1>
+        <div class="panel-head-actions">
+          <select class="mono-input" id="fw-device-select">
+            <option value="">все устройства</option>
+          </select>
+          <button id="fw-refresh" class="btn btn-ghost" title="Обновить">↻</button>
+        </div>
+      </div>
+
+      <div class="banner banner-info">
+        <span>Шлюз периодически шлёт устройству случайный запрос (challenge).
+        Устройство отвечает подписью ECDSA от <code>challenge || SHA-256(образ прошивки)</code>.
+        Если подпись верна и хеш совпадает с зарегистрированным — на устройстве
+        работает та же прошивка, что при регистрации.</span>
+      </div>
+
+      <div class="fw-summary" id="fw-summary"></div>
+
+      <div id="fw-empty" class="empty-state hidden">Проверок пока не было.</div>
+
+      <div class="table-scroll">
+      <table class="device-table" id="fw-table">
+        <thead>
+          <tr>
+            <th class="col-status"></th>
+            <th>время</th>
+            <th>device id</th>
+            <th>результат</th>
+            <th>подробности</th>
+          </tr>
+        </thead>
+        <tbody id="fw-rows"></tbody>
+      </table>
+      </div>
+    </section>
+  </section>
+
+  <section class="view hidden" id="view-metrics">
+    <section class="panel">
+      <div class="panel-head">
+        <h1>Метрики шлюза</h1>
+        <div class="panel-head-actions">
+          <span id="metrics-updated" class="dim-cell mono"></span>
+          <button id="metrics-refresh" class="btn btn-ghost" title="Обновить">↻</button>
+        </div>
+      </div>
+
+      <p class="drawer-hint">Агрегированные счётчики с момента запуска шлюза
+      (сбрасываются при перезапуске). Полная история — в журнале событий каждого
+      устройства.</p>
+
+      <div class="metrics-group-title">Рукопожатия</div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value" id="m-handshakes_completed">—</div>
+          <div class="metric-label">завершено успешно</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="m-handshakes_rejected">—</div>
+          <div class="metric-label">отклонено</div>
+        </div>
+        <div class="metric-card metric-accent-danger">
+          <div class="metric-value" id="m-replays_blocked">—</div>
+          <div class="metric-label">отбито replay-атак</div>
+        </div>
+      </div>
+
+      <div class="metrics-group-title">Ротация ключей</div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value" id="m-rotations_succeeded">—</div>
+          <div class="metric-label">успешных ротаций</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="m-rotations_failed">—</div>
+          <div class="metric-label">неуспешных ротаций</div>
+        </div>
+      </div>
+
+      <div class="metrics-group-title">Проверка целостности прошивки</div>
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value" id="m-firmware_checks_passed">—</div>
+          <div class="metric-label">проверок пройдено</div>
+        </div>
+        <div class="metric-card metric-accent-danger">
+          <div class="metric-value" id="m-firmware_checks_failed">—</div>
+          <div class="metric-label">проверок провалено</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="m-firmware_checks_rejected">—</div>
+          <div class="metric-label">ответов отклонено (устарел)</div>
+        </div>
+      </div>
+
+      <div class="metrics-group-title">Устройства</div>
+      <div class="metrics-grid">
+        <div class="metric-card metric-accent-danger">
+          <div class="metric-value" id="m-devices_revoked">—</div>
+          <div class="metric-label">отозвано устройств</div>
+        </div>
+      </div>
+
+      <div class="metrics-group-title">Данные</div>
+      <div class="metrics-grid">
+        <div class="metric-card metric-accent-danger">
+          <div class="metric-value" id="m-data_replays_blocked">—</div>
+          <div class="metric-label">повторов пакетов отбито</div>
+        </div>
+      </div>
+
+      <div class="metrics-group-title">Хранилище</div>
+      <div class="metrics-grid">
+        <div class="metric-card metric-accent-danger">
+          <div class="metric-value" id="m-telemetry_dropped">—</div>
+          <div class="metric-label">показаний не сохранено</div>
+        </div>
+      </div>
+    </section>
+  </section>
+
+</main>
+
+<!-- Drawer: регистрация устройства -->
+<div id="register-overlay" class="overlay hidden"></div>
+<aside id="register-drawer" class="drawer hidden" aria-label="Регистрация устройства">
+  <div class="drawer-head">
+    <h2>Офлайн-регистрация устройства</h2>
+    <button id="register-close" class="btn btn-ghost" aria-label="Закрыть">✕</button>
+  </div>
+
+  <p class="drawer-hint">
+    Считайте строку с Serial-порта устройства после первой загрузки
+    (формат: <code>DeviceID=... IdentityPub=... KEMPub=... FirmwareHash=... Checksum=...</code>)
+    и вставьте её целиком — поля ниже заполнятся автоматически.
+  </p>
+
+  <label class="field-label" for="serial-paste">Строка с Serial-порта</label>
+  <textarea id="serial-paste" class="mono-input" rows="3"
+    placeholder="DeviceID=xiao-esp32c6-0007 IdentityPub=04a1b2... KEMPub=88c3d4... FirmwareHash=9f1e... Checksum=a1b2c3d4"></textarea>
+
+  <div class="field-divider">или заполните поля вручную</div>
+
+  <form id="register-form">
+    <label class="field-label" for="f-device-id">Device ID</label>
+    <input class="mono-input" id="f-device-id" name="device_id" autocomplete="off" required>
+
+    <label class="field-label" for="f-identity-pub">Identity Pub (hex, ECDSA/SLH-DSA)</label>
+    <textarea class="mono-input small" id="f-identity-pub" name="identity_pub_hex" rows="2" required></textarea>
+
+    <label class="field-label" for="f-kem-pub">KEM Pub (hex, ML-KEM-1024)</label>
+    <textarea class="mono-input small" id="f-kem-pub" name="kem_pub_hex" rows="3" required></textarea>
+
+    <label class="field-label" for="f-firmware-hash">Firmware Hash (hex, SHA-256)</label>
+    <input class="mono-input" id="f-firmware-hash" name="firmware_hash_hex" autocomplete="off" required>
+
+    <label class="field-label" for="f-checksum">Checksum</label>
+    <input class="mono-input" id="f-checksum" name="checksum" autocomplete="off" required>
+
+    <label class="field-label" for="f-sig-alg">Алгоритм подписи (efuse)</label>
+    <select class="mono-input" id="f-sig-alg" name="sig_algorithm">
+      <option value="ecdsa-p256" selected>ECDSA P-256</option>
+      <option value="slh-dsa">SLH-DSA-SHA2-128s (постквантовая; прошивка ESP32 не умеет)</option>
+    </select>
+    <p class="field-hint">
+      ECDSA P-256 — то, чем подписывает прошивка ESP32. SLH-DSA поддерживается
+      шлюзом полностью и подходит для программных устройств, но на ESP32
+      неприменима: подпись занимает сотни миллисекунд и 7856 байт против ~70 у
+      ECDSA (см. MEASUREMENTS.md, раздел 3.2). Плата, зарегистрированная с
+      SLH-DSA, пройдёт регистрацию и не сможет завершить рукопожатие.
+    </p>
+
+    <div id="register-error" class="form-error hidden"></div>
+
+    <button type="submit" class="btn btn-primary btn-block">Подтвердить физическое владение и зарегистрировать</button>
+  </form>
+</aside>
+
+<!-- Drawer: ввод токена -->
+<div id="token-overlay" class="overlay hidden"></div>
+<aside id="token-drawer" class="drawer drawer-narrow hidden" aria-label="Admin-токен">
+  <div class="drawer-head">
+    <h2>Admin-токен</h2>
+    <button id="token-close" class="btn btn-ghost" aria-label="Закрыть">✕</button>
+  </div>
+  <p class="drawer-hint">
+    Значение <code>LACERT_ADMIN_TOKEN</code> с этого шлюза (на сервере —
+    файл <code>/etc/lacert/gatewayd.env</code>). Хранится только в этом
+    браузере (localStorage), на шлюз не передаётся ничего кроме как в
+    заголовке запросов.
+  </p>
+  <input class="mono-input" id="token-input" autocomplete="off" placeholder="вставьте токен">
+  <button id="token-save" class="btn btn-primary btn-block">Сохранить</button>
+  <button id="token-clear" class="btn btn-ghost btn-block">Очистить</button>
+</aside>
+
+<!-- Drawer: устройство (последние данные + журнал событий) -->
+<div id="events-overlay" class="overlay hidden"></div>
+<aside id="events-drawer" class="drawer hidden" aria-label="Карточка устройства">
+  <div class="drawer-head">
+    <h2><span id="events-device-id" class="mono"></span></h2>
+    <button id="events-close" class="btn btn-ghost" aria-label="Закрыть">✕</button>
+  </div>
+
+  <div class="field-label">последнее принятое сообщение</div>
+  <div id="events-last-telemetry" class="telemetry-box">
+    <div class="muted">данных пока нет</div>
+  </div>
+  <button id="events-open-monitoring" class="btn btn-ghost btn-block">смотреть график этого устройства →</button>
+
+  <div class="field-label" style="margin-top:20px">журнал событий</div>
+  <ul id="events-list" class="events-list"></ul>
+</aside>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
