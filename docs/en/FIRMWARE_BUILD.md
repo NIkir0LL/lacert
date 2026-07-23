@@ -81,6 +81,11 @@ versions, keeps only the files that build on ESP32 (SIMD implementations for
 x86/ARM are dropped), and overlays the local glue from `component-overlay/`
 (hardware RNG and `CMakeLists.txt`).
 
+The commands below are written for the `lacert` monorepo, where the firmware
+lives in the `firmware/` subdirectory. When building from the
+`lacert-crypto-esp32` repository the firmware sits at the repository root —
+skip the `cd firmware` step, everything else is the same.
+
 ```bash
 cd firmware
 

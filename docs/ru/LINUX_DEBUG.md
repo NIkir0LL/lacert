@@ -36,6 +36,10 @@ git clone https://github.com/PQClean/PQClean ~/PQClean
 
 ## Сборка
 
+Путь ниже указан для монорепозитория `lacert`. В репозитории
+`lacert-crypto-esp32` отладочный клиент лежит в корне — там достаточно
+`cd linux-debug`.
+
 ```bash
 cd firmware/linux-debug
 bash build_linux.sh

@@ -39,6 +39,9 @@ git clone https://github.com/PQClean/PQClean ~/PQClean
 
 ## Building
 
+The path below is for the `lacert` monorepo. In the `lacert-crypto-esp32`
+repository the debug client sits at the root, so `cd linux-debug` is enough.
+
 ```bash
 cd firmware/linux-debug
 bash build_linux.sh
