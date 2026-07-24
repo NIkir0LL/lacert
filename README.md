@@ -23,7 +23,8 @@ combines:
   provisioning: the device is given its public key offline, and does not verify
   a gateway signature — see `docs/en/PROTOCOL_SPEC.md`, section 3);
 - **continuous key rotation** for forward secrecy and post-compromise security;
-- **remote firmware-integrity checks** (ECDSA challenge-response);
+- **remote firmware-integrity checks** (challenge-response signed with the
+  device identity key, so the post-quantum SLH-DSA option covers them too);
 - **ChaCha20-Poly1305** for the encrypted data channel.
 
 This repository is the **full working system**: gateway daemon, device registry,
@@ -98,7 +99,8 @@ LACERT подключает IoT-устройства с ограниченным
   подписи шлюза протокол не проверяет — см. `docs/ru/PROTOCOL_SPEC.md`, раздел 3);
 - **непрерывную ротацию ключей** для прямой секретности и восстановления
   стойкости после компрометации;
-- **удалённую проверку целостности прошивки** (ECDSA, «запрос-ответ»);
+- **удалённую проверку целостности прошивки** («запрос-ответ» с подписью ключом
+  устройства, поэтому постквантовый вариант SLH-DSA распространяется и на неё);
 - **ChaCha20-Poly1305** для зашифрованного канала данных.
 
 Этот репозиторий — **полная рабочая система**: демон шлюза, реестр устройств,
