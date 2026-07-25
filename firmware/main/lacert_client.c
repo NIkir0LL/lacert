@@ -1,7 +1,8 @@
 // lacert_client.c — реализация протокольной логики.
 // Кодирование кадров и последовательность шагов реализованы полностью и
-// соответствуют docs/ru/PROTOCOL_SPEC.md. Крипто-вызовы идут через lacert_crypto.*
-// (часть из них пока заглушки — см. lacert_crypto.c).
+// соответствуют docs/ru/PROTOCOL_SPEC.md. Крипто-вызовы идут через
+// lacert_crypto.* — там рабочие реализации поверх mbedTLS (ECDSA P-256,
+// SHA-256, ChaCha20-Poly1305), BLAKE3 и ML-KEM-1024 из PQClean.
 #include "lacert_client.h"
 #include "lacert_wire.h"
 #include <stdlib.h>
