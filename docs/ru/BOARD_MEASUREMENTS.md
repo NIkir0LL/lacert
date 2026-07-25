@@ -1,6 +1,6 @@
 # Замеры производительности прошивки на платах
 
-English version: [`BOARD_MEASUREMENTS.md`](BOARD_MEASUREMENTS.md).
+> **Язык:** Русский · [English](../en/BOARD_MEASUREMENTS.md)
 
 Методика измерения криптографических операций LACERT на реальных устройствах
 ESP32 и проверки эффекта оптимизации ECDSA-контекста. Сборка под esp32c6

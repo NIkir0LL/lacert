@@ -1,11 +1,11 @@
 # On-board firmware performance measurements
 
+> **Language:** English · [Русский](../ru/BOARD_MEASUREMENTS.md)
+
 Methodology for measuring LACERT cryptographic operations on real ESP32 devices
 and for checking the effect of the ECDSA-context optimization. A full build for
 esp32c6 has been verified from a clean clone of the repository; on-board numbers
 are collected with the steps below.
-
-Russian version: [`ЗАМЕРЫ_НА_ПЛАТАХ.md`](ЗАМЕРЫ_НА_ПЛАТАХ.md).
 
 ## Verified before on-board measurements
 
