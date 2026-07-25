@@ -253,7 +253,7 @@ killed **the entire gateway process** along with every connected device. One
 corrupted packet on port 7700 was enough. Traffic of exactly this kind — a
 network scanner probing the port with an HTTP request — had already been
 observed in operation. Fixed by converting to `int` before the addition;
-`recover()` was added as defence in depth, so a panic now takes down only one
+`recover()` was added as defense in depth, so a panic now takes down only one
 connection. Covered by tests with pathological input for all seven parsing
 functions and by an end-to-end test that hammers the server with garbage
 traffic, including an exact copy of a line from a real log.

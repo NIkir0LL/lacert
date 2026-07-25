@@ -111,11 +111,11 @@ gateway.
 
 ## How close this is to the real firmware
 
-`main_linux.c` is written to model the behaviour of a real device:
+`main_linux.c` is written to model the behavior of a real device:
 
 1. **Persistent keys.** On the first run the keys (ECDSA + ML-KEM) are generated
    and saved to a file (`lacert_device.keys` by default, overridable with
-   `LACERT_KEYFILE`). On later runs they are loaded, so the gateway recognises
+   `LACERT_KEYFILE`). On later runs they are loaded, so the gateway recognizes
    "the same device" after a restart — the equivalent of NVS/efuse on the ESP32.
    Re-enrolling with the same keys is ignored by the gateway, which is expected.
 2. **A real firmware hash.** `firmware_hash` is the SHA-256 of the binary itself
@@ -134,6 +134,6 @@ Wi-Fi with lwIP (the socket API itself is the same).
 ```bash
 # first run — enrolls:
 LACERT_KEYFILE=dev1.keys ./lacert-client 127.0.0.1 8080 7700
-# second run — recognised by the same keys:
+# second run — recognized by the same keys:
 LACERT_KEYFILE=dev1.keys ./lacert-client 127.0.0.1 8080 7700
 ```

@@ -53,7 +53,7 @@ Fill these in at the top of `main/main.c`:
                                    // 2 = addressable RGB WS2812 (ESP32-S3-DevKitC-1)
 ```
 
-**About the LED.** The XIAO has a plain single-colour LED (mode 1); the
+**About the LED.** The XIAO has a plain single-color LED (mode 1); the
 ESP32-S3-DevKitC-1 has an addressable RGB WS2812 (mode 2), which is driven by a
 pulse protocol and will not light up from a plain `gpio_set_level`. Set the mode
 that matches your board. The pins (`LACERT_LED_GPIO` for the XIAO,
@@ -62,7 +62,7 @@ changed if needed.
 
 What the LED indicates:
 
-| Event | XIAO (single colour) | DevKitC-1 (RGB) |
+| Event | XIAO (single color) | DevKitC-1 (RGB) |
 |-------|----------------------|-----------------|
 | secure channel established | 3 flashes | green ×3 |
 | telemetry sent | 1 short flash | blue ×1 |
@@ -113,7 +113,7 @@ them deliberately, changing these values and re-checking the build.
    saved (the equivalent of efuse: subsequent boots reuse them).
 3. The SHA-256 of the firmware image is computed.
 4. The device enrolls with the gateway over REST (re-enrolling with the same
-   keys is not an error — the gateway simply recognises the device).
+   keys is not an error — the gateway simply recognizes the device).
 5. The gateway's public ML-KEM key is fetched.
 6. TCP connection, handshake, then the main loop: telemetry every 2 seconds,
    answers to key rotations and firmware checks. On a drop, it reconnects.
@@ -262,7 +262,7 @@ Results for all boards, and the conclusions drawn from them, are in
 `FIRMWARE.md`.
 
 **The measurements depend on build settings.** By default ESP-IDF builds with
-`-Og` (no optimisation), and on such a build cryptography runs several times
+`-Og` (no optimization), and on such a build cryptography runs several times
 slower. `sdkconfig.defaults` enables `-Os` and the hardware accelerators (MPI,
 SHA, and ECC on the C6). To confirm they were applied:
 

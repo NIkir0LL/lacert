@@ -45,14 +45,14 @@ file `firmware/sdkconfig.defaults`):
 CONFIG_COMPILER_OPTIMIZATION_SIZE=y     # -Os (rather than the default debug -Og)
 CONFIG_MBEDTLS_HARDWARE_MPI=y           # hardware big-number unit
 CONFIG_MBEDTLS_HARDWARE_SHA=y           # hardware SHA-256
-CONFIG_MBEDTLS_ECP_NIST_OPTIM=y         # optimised arithmetic for P-256
+CONFIG_MBEDTLS_ECP_NIST_OPTIM=y         # optimized arithmetic for P-256
 CONFIG_MBEDTLS_HARDWARE_ECC=y           # ESP32-C6 only: the ECC accelerator
 ```
 
 **Rationale.** ESP-IDF builds a project with `-Og` (a debug build) by default. In
 such a build cryptographic operations run several times slower than in real
-firmware, and the resulting figures would characterise the debug mode rather
-than the algorithm. Every measurement reported here was taken from an optimised
+firmware, and the resulting figures would characterize the debug mode rather
+than the algorithm. Every measurement reported here was taken from an optimized
 build; both boards were built with identical settings, so the architectural
 comparison is valid.
 
@@ -122,7 +122,7 @@ key-pair generation, 200 for the light operations).
 | BLAKE3, key derivation | 2.0 µs | 18.0 µs | 19.8 µs |
 | SHA-256 (96 bytes) | 0.7 µs | 60.1 µs | 41.7 µs |
 | ChaCha20-Poly1305, encryption | 12.4 µs | 150.5 µs | 210.6 µs |
-| Free memory after initialisation | — | 252 KB | 295 KB |
+| Free memory after initialization | — | 252 KB | 295 KB |
 
 The board figures were taken with `LACERT_SHARED_CRYPTO_CTX = 1` (the shared
 cryptographic context, see section 3.4).
@@ -195,7 +195,7 @@ rotation step — 34.7 µs, packet encryption — 0.83 µs.
 234.3 ms — 9,300× more expensive than ECDSA and **a thousand times more
 expensive than its own verification**.
 
-For the architecture under consideration this asymmetry is unfavourable: the
+For the architecture under consideration this asymmetry is unfavorable: the
 signature is produced by the device (a microcontroller) and verified by the
 gateway (a server). The entire cost of the algorithm therefore falls on the
 least capable node in the system.
@@ -208,7 +208,7 @@ generation, conversely, is 44 % slower, which is of no practical consequence: it
 happens once in the lifetime of a device.
 
 On a server platform the memory advantage is immaterial; on a microcontroller
-with a constrained heap, however, it determines how predictable the behaviour
+with a constrained heap, however, it determines how predictable the behavior
 is — less fragmentation and less risk of an allocation failure.
 
 An important caveat: **Ed25519 is not a post-quantum scheme**. The comparison
@@ -221,7 +221,7 @@ Ed25519 are set out in `PROTOCOL_SPEC.md`, section 9.
 
 ### 3.3. The cost of the signature choice at protocol level
 
-The figures above characterise isolated operations. The practical question is
+The figures above characterize isolated operations. The practical question is
 what the choice of algorithm costs **the protocol as a whole**. To answer it,
 the complete handshake (three messages, including the ML-KEM exchange, key
 derivation and confirmation) was measured in two variants:
@@ -258,7 +258,7 @@ effect is more pronounced (see observation 1 in section 3.1).
 
 This result supports the chosen architecture: moving post-quantum strength to
 the key-exchange layer creates no computational bottleneck, and further
-optimisation of the protocol should be directed at the signature operations.
+optimization of the protocol should be directed at the signature operations.
 
 ### 3.4. The cost of preparing the cryptographic context
 
@@ -291,23 +291,23 @@ control operations untouched by the change diverged between runs by as much as
 6.5 % (SHA-256), while the rest stayed within 0.6 %. For the ESP32-C6 the gains
 of 13.6 % and 22.3 % lie well above the noise floor.
 
-**The price of the optimisation.** The shared context permanently occupies heap:
+**The price of the optimization.** The shared context permanently occupies heap:
 608 bytes on the ESP32-C6 and 448 bytes on the ESP32-S3. Against 250–300 KB of
 free memory this is immaterial.
 
-The optimisation is left enabled by default. The switch remains in the code, so
+The optimization is left enabled by default. The switch remains in the code, so
 the decision is reversible and open to re-verification.
 
 **A separate note on the server platform.** On x86-64, built against mbedTLS
 3.6, there is no difference between the two versions: 348.2 µs against 347.4 µs
 by the median of fifteen runs. The gain appears only on the microcontroller,
 where entropy comes from a hardware generator rather than from the operating
-system. This illustrates that optimisations measured on a server platform do not
+system. This illustrates that optimizations measured on a server platform do not
 transfer to an embedded one automatically, nor the other way round.
 
 ### 3.5. Comparison with DTLS 1.2
 
-The figures above characterise LACERT on its own. The practical question is what
+The figures above characterize LACERT on its own. The practical question is what
 a standard solution to the same problem costs. DTLS 1.2 as implemented in
 mbedTLS was taken as the baseline: it targets the same scenarios (protecting
 datagrams from embedded devices) and ships with ESP-IDF, so it adds no
@@ -377,7 +377,7 @@ The difference in total cost is explained by DTLS-ECDHE-ECDSA performing both an
 ephemeral elliptic-curve exchange and two signatures with certificate parsing,
 while LACERT does one signature and one encapsulation.
 
-#### Traffic volume — not in LACERT's favour
+#### Traffic volume — not in LACERT's favor
 
 The LACERT handshake takes 1,800 bytes against 538 for DTLS-ECDHE-PSK. The cause
 is the 1,568-byte ML-KEM-1024 ciphertext, an unavoidable property of the scheme.
@@ -399,7 +399,7 @@ proceeds without a new ML-KEM exchange and adds only 32 bytes per step.
 The same bench was run on both boards, where client and server execute on one
 chip. The boards differ in having a hardware accelerator for elliptic curves:
 the ESP32-C6 has one, the ESP32-S3 does not. That makes the comparison
-particularly telling — the accelerator works in favour of DTLS, since neither
+particularly telling — the accelerator works in favor of DTLS, since neither
 board provides hardware support for ML-KEM operations.
 
 | Protocol | ESP32-S3 | ESP32-C6 |
@@ -423,7 +423,7 @@ of the handshake is negligible against it.
 | **ratio** | **13.4 : 1** | **15.0 : 1** | **11.2 : 1** |
 
 The result is robust: the advantage of ML-KEM holds even where the hardware
-favours its competitor.
+favors its competitor.
 
 **Observation 8. The ESP32-C6 accelerator speeds up ECDSA operations but not the
 ECDHE key exchange.** Decomposing the handshake across the two measured modes
@@ -538,13 +538,13 @@ rm -rf build sdkconfig
 idf.py set-target esp32c6          # or esp32s3
 idf.py build
 
-# confirm that the optimised configuration was applied:
+# confirm that the optimized configuration was applied:
 grep -E 'COMPILER_OPTIMIZATION|MBEDTLS_HARDWARE' sdkconfig
 
 idf.py -p /dev/ttyACM0 flash monitor
 ```
 
-The results are printed to the serial port immediately after initialisation,
+The results are printed to the serial port immediately after initialization,
 before the board joins the network (the "CRYPTOGRAPHY MICROBENCHMARK" block).
 
 ### 6.2. Measurements on the baseline platform (x86-64)

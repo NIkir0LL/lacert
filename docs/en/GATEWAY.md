@@ -202,7 +202,7 @@ as history grows). The indexes are created automatically during migration.
 not bring the gateway down. Shutdown on `SIGTERM`/`SIGINT` is graceful: the
 server waits for in-flight requests and closes sessions.
 
-## Behaviour under load (measured)
+## Behavior under load (measured)
 
 Load test against a real PostgreSQL, on **a single CPU core**, with emulated
 devices sending telemetry every 2 s, rotating keys every 30 s and running

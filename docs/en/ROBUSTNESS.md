@@ -19,7 +19,7 @@ grow without bound.
 **Tests.** `internal/crypto/replay_test.go`,
 `TestHandleMsg1RejectsReplayedNonce` in `internal/gateway`.
 
-## 2. Atomic key rotation with acknowledgement (ACK) and an iteration number
+## 2. Atomic key rotation with acknowledgment (ACK) and an iteration number
 
 **Problem.** The original rotation updated the initiator's key immediately and
 overwrote the old one. Losing a rotation message on the network left the two
@@ -169,7 +169,7 @@ had it from the start).
 - **Tab switching and polling** create no extra load; only the active tab is
   refreshed.
 - **`cmd/demo`** deliberately uses non-atomic rotation as a simple illustration
-  of the UML sequence; it is a documented teaching artefact, not a production
+  of the UML sequence; it is a documented teaching artifact, not a production
   path.
 
 ### Metrics surfaced on the web dashboard
@@ -226,7 +226,7 @@ reloads the data.
 
 ### 2. Metric values were pushed to the left
 **Problem.** The numbers and labels in the metric cards were left-aligned.
-**Fix.** The contents of the metric cards are now centred both horizontally and
+**Fix.** The contents of the metric cards are now centered both horizontally and
 vertically, and the cards were given a minimum height for consistency.
 
 ### 3. Monitoring showed only about 25 minutes of data regardless of the period
@@ -291,10 +291,10 @@ revoked and the `devices_revoked` metric increases.
 
 ---
 
-## Comprehensive stress test of every defence mechanism (5 devices)
+## Comprehensive stress test of every defense mechanism (5 devices)
 
 An integration test, `TestStressAllDefenseMechanisms`
-(`internal/gateway/stress_test.go`), was added. It exercises every defence
+(`internal/gateway/stress_test.go`), was added. It exercises every defense
 mechanism simultaneously across five devices, each reproducing its own failure
 scenario. Time is controlled manually, so the test is deterministic.
 
@@ -441,7 +441,7 @@ device halted key rotation for ALL the others.
 ### 5. Other audit findings
 - The obsolete non-atomic rotation (type 4) is no longer accepted: the frame is
   not authenticated in any way, and `Session.Rotate()` does not advance the
-  iteration counter, so a single such frame would desynchronise atomic rotation.
+  iteration counter, so a single such frame would desynchronize atomic rotation.
 - `ApplyRotationAck` checks and commits under a single mutex acquisition
   (previously there was a window between the two).
 - After revoking a device, the scheduler now drops its TCP connection (only the
@@ -450,5 +450,5 @@ device halted key rotation for ALL the others.
 - `putFramed` explicitly rejects fields longer than 65535 bytes instead of
   silently truncating the length to `uint16`.
 - REST: the registration request body is size-limited, and a revoked device is
-  recognised via `errors.Is` rather than `==` comparison.
+  recognized via `errors.Is` rather than `==` comparison.
 - The installer creates the env file with mode 600 before writing secrets to it.

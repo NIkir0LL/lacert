@@ -98,7 +98,7 @@ lacert5/
 │   ├── gatewayd/             the production gateway
 │   ├── devicesim/            device simulator (for testing without hardware)
 │   ├── demo/                 protocol demonstration with tracing
-│   └── stresstest/           live attacker (exercises the defences)
+│   └── stresstest/           live attacker (exercises the defenses)
 ├── internal/                 gateway-internal packages (not importable outside)
 │   ├── crypto/               primitives (ML-KEM, ECDSA, BLAKE3, ChaCha20)
 │   ├── gateway/              gateway logic: sessions, rotation, integrity checks
@@ -191,6 +191,6 @@ go test ./...         # unit tests (14 packages)
 go test -race ./...   # race detector
 ```
 
-An end-to-end stress test of five defence mechanisms (forged signature, replay,
+An end-to-end stress test of five defense mechanisms (forged signature, replay,
 stale challenge, wrong key, corrupted frame) lives in
 `internal/gateway/stress_test.go` and `cmd/stresstest/`.

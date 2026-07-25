@@ -20,7 +20,7 @@ for production you can simply set nothing.
 |---|---|---|
 | `LACERT_ROTATION_INTERVAL` | `300s` | How often to rotate the key by time |
 | `LACERT_ROTATION_PACKET_LIMIT` | `300` | Rotate after N transmitted packets |
-| `LACERT_ROTATION_ACK_TIMEOUT` | `5s` | How long to wait for a rotation acknowledgement (ACK) before treating it as failed |
+| `LACERT_ROTATION_ACK_TIMEOUT` | `5s` | How long to wait for a rotation acknowledgment (ACK) before treating it as failed |
 | `LACERT_ROTATION_CHECK_PERIOD` | `5s` | How often the scheduler polls devices |
 | `LACERT_MAX_ROTATION_FAILURES` | `3` | How many consecutive failed rotations before a device is revoked |
 | `LACERT_FIRMWARE_INTERVAL` | `1h` | How often to check firmware integrity |

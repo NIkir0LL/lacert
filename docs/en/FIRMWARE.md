@@ -62,7 +62,7 @@ red.
 
 ```
 app_main
-  ├─ nvs_flash_init            initialise storage
+  ├─ nvs_flash_init            initialize storage
   ├─ led_init                  LED (mode 1 — plain, mode 2 — RGB WS2812)
   ├─ wifi_init_sta             connect to Wi-Fi (wait for an IP)
   ├─ keys_load / generate      keys from NVS, or create them on first boot
@@ -84,7 +84,7 @@ app_main
 
 On first power-up the device generates ECDSA and ML-KEM keys and saves them to
 NVS (namespace `lacert`). On later boots the keys are loaded, which is why the
-gateway recognises "the same device" after a reboot. This models the binding to
+gateway recognizes "the same device" after a reboot. This models the binding to
 efuse on a production device.
 
 If NVS is erased (`idf.py erase-flash`), the device generates new keys. The
@@ -98,7 +98,7 @@ record on the gateway (see `GATEWAY.md`).
 `esp_partition_get_sha256`. This value is sent during enrollment and used in
 responses to firmware challenges. If you reflash modified firmware without
 clearing the record on the gateway, its hash changes and integrity checks start
-failing — which is the correct behaviour (protection against tampering), but it
+failing — which is the correct behavior (protection against tampering), but it
 gets in the way during active development; raising `LACERT_FIRMWARE_INTERVAL`
 on the gateway helps temporarily.
 
@@ -106,7 +106,7 @@ on the gateway helps temporarily.
 
 The mode is chosen by the `LACERT_LED_MODE` macro at the top of `main.c`:
 
-- **1** — a plain single-colour LED (XIAO). Pin `LACERT_LED_GPIO`
+- **1** — a plain single-color LED (XIAO). Pin `LACERT_LED_GPIO`
   (S3 = 21, C6 = 15), active-low (`LACERT_LED_ACTIVE_LOW = 1`).
 - **2** — an addressable RGB WS2812 (DevKitC-1) driven over RMT. Pin
   `LACERT_RGB_GPIO` (48 by default; 38 on early board revisions). Brightness is
@@ -149,7 +149,7 @@ gateway's implementation (circl), ECDSA produces valid DER, and the full
 protocol (handshake, rotation, firmware check) completes. On real hardware all
 three boards (C6, XIAO S3, DevKitC-1) run the whole protocol.
 
-## Behaviour when the gateway is unavailable
+## Behavior when the gateway is unavailable
 
 The device does not give up if the gateway is down or restarting:
 
@@ -201,9 +201,9 @@ there is a memory leak. In stable operation it quickly reaches a plateau.
 ### Important: the measurements depend on build settings
 
 By default ESP-IDF builds a project with **`-Og`** (a debug build, no
-optimisation) and **without hardware acceleration** of cryptography. In such a
+optimization) and **without hardware acceleration** of cryptography. In such a
 build an ECDSA signature takes **hundreds of milliseconds** — that is not a
-property of the algorithm but an artefact of the debug configuration, and
+property of the algorithm but an artifact of the debug configuration, and
 quoting such figures as a characteristic of the protocol would be wrong.
 
 `sdkconfig.defaults` enables:
@@ -213,7 +213,7 @@ quoting such figures as a characteristic of the protocol would be wrong.
 | `CONFIG_COMPILER_OPTIMIZATION_SIZE` | build with `-Os` instead of `-Og`: smaller and noticeably faster code |
 | `CONFIG_MBEDTLS_HARDWARE_MPI` | the hardware big-number unit — the key accelerator for ECDSA |
 | `CONFIG_MBEDTLS_HARDWARE_SHA` | hardware SHA-256 |
-| `CONFIG_MBEDTLS_ECP_NIST_OPTIM` | optimised arithmetic for P-256 |
+| `CONFIG_MBEDTLS_ECP_NIST_OPTIM` | optimized arithmetic for P-256 |
 
 **If you change `sdkconfig.defaults`, an existing `sdkconfig` will not pick the
 changes up** — it has to be deleted and regenerated:
@@ -222,7 +222,7 @@ changes up** — it has to be deleted and regenerated:
 rm -f sdkconfig && idf.py set-target esp32s3 && idf.py build
 ```
 
-Measurements for a report should be taken from the optimised build, and the
+Measurements for a report should be taken from the optimized build, and the
 configuration they were obtained under must always be stated.
 
 **Comparing architectures.** Exactly the same measurements are taken by the
@@ -281,7 +281,7 @@ otherwise the result is distorted:
 
 The measurements were taken with `LACERT_SHARED_CRYPTO_CTX = 1` (the shared
 cryptographic context). The comparison against the original version, along with
-the memory cost of the optimisation, is in `MEASUREMENTS.md`, section 3.4.
+the memory cost of the optimization, is in `MEASUREMENTS.md`, section 3.4.
 
 **Main conclusion.** ECDSA runs **7.7× faster** on the ESP32-C6 than on the
 ESP32-S3, even though the C6 is the weaker chip (160 MHz against 240, one core

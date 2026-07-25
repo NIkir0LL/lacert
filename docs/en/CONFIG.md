@@ -62,7 +62,7 @@ development. The same token goes into the board's firmware
 |----------|---------|---------|
 | `LACERT_ROTATION_INTERVAL` | `300s` | how often to rotate the session key |
 | `LACERT_ROTATION_PACKET_LIMIT` | `300` | also rotate after this many packets under one key |
-| `LACERT_ROTATION_ACK_TIMEOUT` | `5s` | how long to wait for the device's rotation acknowledgement (ACK) |
+| `LACERT_ROTATION_ACK_TIMEOUT` | `5s` | how long to wait for the device's rotation acknowledgment (ACK) |
 | `LACERT_ROTATION_CHECK_PERIOD` | `5s` | how often the scheduler walks the sessions |
 | `LACERT_MAX_ROTATION_FAILURES` | `3` | how many consecutive failed rotations before a device is revoked |
 

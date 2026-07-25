@@ -69,7 +69,7 @@ Every message is wrapped in a frame:
 | `TypeFirmwareResponse` | 7 | device → gateway | firmware integrity response |
 | `TypeError` | 8 | gateway → device | text error before disconnecting |
 | `TypeRotationV2` | 9 | gateway → device | atomic key rotation |
-| `TypeRotationAck` | 10 | device → gateway | rotation acknowledgement |
+| `TypeRotationAck` | 10 | device → gateway | rotation acknowledgment |
 
 ### Framing of fields inside the payload
 
@@ -214,7 +214,7 @@ ciphertext = ChaCha20Poly1305_seal(Ki, nonce, plaintext)   // includes the 16-by
 
 - The high 8 bytes of the nonce are random, the low 4 bytes are the packet
   counter `seq_num` (BE). This guarantees nonce uniqueness under a single key.
-- `plaintext` is a telemetry string, for example `temperature=25.3; seq=42`.
+- `plaintext` is a telemetry string, for example `temperature=25.3;seq=42`.
 
 Payload:
 
@@ -359,7 +359,7 @@ but for the ESP32 **ECDSA P-256 is strongly recommended**:
   ESP32-S3 does not, so on the S3 the operation runs entirely in software
   (mbedTLS).
 - **SLH-DSA**: signing takes hundreds of milliseconds even on a server — roughly
-  11,000× slower than ECDSA — and signatures are 7,856 bytes. On the ESP32 this
+  9300× slower than ECDSA — and signatures are 7,856 bytes. On the ESP32 this
   is unacceptable in both time and memory.
 
 This is confirmed by measurements (see `MEASUREMENTS.md`). ML-KEM provides
