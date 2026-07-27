@@ -19,9 +19,10 @@ combines:
 - **Post-quantum key exchange** (ML-KEM-1024) so traffic stays safe against a
   future quantum adversary;
 - a **Noise_XX-style handshake** in which the device authenticates itself to
-  the gateway with an efuse-bound signing key (the gateway is trusted by
-  provisioning: the device is given its public key offline, and does not verify
-  a gateway signature — see `docs/en/PROTOCOL_SPEC.md`, section 3);
+  the gateway with an efuse-bound signing key. Authentication is one-way: the
+  protocol does not verify a gateway signature, and the gateway is trusted by
+  deployment conditions — an isolated corporate network (see
+  `docs/en/PROTOCOL_SPEC.md`, section 3);
 - **continuous key rotation** for forward secrecy and post-compromise security;
 - **remote firmware-integrity checks** (challenge-response signed with the
   device identity key, so the post-quantum SLH-DSA option covers them too);
@@ -94,9 +95,10 @@ LACERT подключает IoT-устройства с ограниченным
 - **постквантовый обмен ключами** (ML-KEM-1024), чтобы трафик был защищён от
   будущего квантового противника;
 - **рукопожатие по образцу Noise_XX**, в котором устройство аутентифицирует
-  себя перед шлюзом efuse-привязанным ключом подписи (шлюз доверенный по
-  провижинингу: его публичный ключ передаётся устройству офлайн, встречной
-  подписи шлюза протокол не проверяет — см. `docs/ru/PROTOCOL_SPEC.md`, раздел 3);
+  себя перед шлюзом efuse-привязанным ключом подписи. Аутентификация
+  односторонняя: встречной подписи шлюза протокол не проверяет, шлюз считается
+  доверенным по условиям развёртывания — изолированная корпоративная сеть
+  (см. `docs/ru/PROTOCOL_SPEC.md`, раздел 3);
 - **непрерывную ротацию ключей** для прямой секретности и восстановления
   стойкости после компрометации;
 - **удалённую проверку целостности прошивки** («запрос-ответ» с подписью ключом

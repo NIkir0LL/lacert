@@ -663,6 +663,9 @@ button, input, textarea, select {
   margin: 22px 0 10px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--border);
+  /* По центру — согласуется с содержимым карточек ниже, которое тоже
+     отцентровано. Прижатый к левому краю заголовок выбивался из этой сетки. */
+  text-align: center;
 }
 .metrics-group-title:first-of-type { margin-top: 8px; }
 .metrics-grid {

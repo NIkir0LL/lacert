@@ -195,7 +195,10 @@ LACERT_TCP_ADDR=:7700
 LACERT_HTTP_ADDR=:8080
 LACERT_MQTT_ADDR=:1883
 LACERT_ADMIN_TOKEN=сгенерируйте_через_openssl_rand_-hex_32
-LACERT_CORS_ORIGINS=*
+# Кросс-доменные запросы по умолчанию не разрешены: дашборд отдаётся тем же
+# процессом с того же адреса и в них не нуждается. Раскомментируйте только если
+# к REST API обращается сторонняя веб-страница, и укажите её адрес, а не "*".
+# LACERT_CORS_ORIGINS=https://lacert.example.com
 EOF
 sudo chmod 600 /etc/lacert/gatewayd.env
 

@@ -8,7 +8,8 @@ let pollTimer = null;
 let openEventsDeviceID = null;
 let currentView = "devices";
 let devicesByID = {};
-let gatewayLogSessionKeys = false;
+// null — режим неизвестен: шлюз сообщает его только авторизованному запросу.
+let gatewayLogSessionKeys = null;
 
 // deviceIDs — множество выбранных устройств на вкладке «Мониторинг».
 // Пустое множество означает «все устройства»: так вкладка ведёт себя при первом
@@ -80,11 +81,14 @@ async function api(path, options) {
 
 async function loadGatewayInfo() {
   try {
-    const resp = await fetch("/api/v1/gateway");
+    // Через api(), а не голый fetch: сам публичный ключ шлюз отдаёт всем, но
+    // служебное поле log_session_keys — только по токену.
+    const resp = await api("/api/v1/gateway");
     if (!resp.ok) throw new Error("status " + resp.status);
     const data = await resp.json();
     el("gw-fingerprint").textContent = "gw: " + shortHex(data.kem_pub_hex, 16);
-    gatewayLogSessionKeys = !!data.log_session_keys;
+    gatewayLogSessionKeys =
+      "log_session_keys" in data ? !!data.log_session_keys : null;
     setConn(true);
   } catch (e) {
     el("gw-fingerprint").textContent = "gw: недоступен";
@@ -419,6 +423,7 @@ function saveToken() {
   }
   closeDrawer("token");
   showToast("Токен сохранён в этом браузере", "ok");
+  loadGatewayInfo();
   loadDevices();
 }
 
@@ -427,6 +432,7 @@ function clearToken() {
   localStorage.removeItem(TOKEN_KEY);
   el("token-input").value = "";
   closeDrawer("token");
+  loadGatewayInfo();
   loadDevices();
 }
 
@@ -1010,8 +1016,11 @@ async function loadRotations() {
 }
 
 function renderRotations(entries) {
-  el("rot-mode-banner").classList.toggle("hidden", !gatewayLogSessionKeys);
-  el("rot-mode-banner-off").classList.toggle("hidden", gatewayLogSessionKeys);
+  // Три состояния: режим включён, выключен и неизвестен (нет токена — шлюз
+  // служебное поле не отдал). В последнем случае не утверждаем ни того, ни
+  // другого и не показываем баннер вовсе.
+  el("rot-mode-banner").classList.toggle("hidden", gatewayLogSessionKeys !== true);
+  el("rot-mode-banner-off").classList.toggle("hidden", gatewayLogSessionKeys !== false);
 
   const tbody = el("rot-rows");
   const table = el("rot-table");

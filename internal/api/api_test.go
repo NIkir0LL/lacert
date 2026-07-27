@@ -405,12 +405,119 @@ func TestAdminAuthRequiredWhenTokenConfigured(t *testing.T) {
 	}
 
 	// /healthz и /api/v1/gateway остаются открытыми даже при включённой
-	// аутентификации (нужны для liveness-проб и провижининга устройств).
-	healthReq := httptest.NewRequest(http.MethodGet, "/healthz", nil)
-	healthRec := httptest.NewRecorder()
-	srv.ServeHTTP(healthRec, healthReq)
-	if healthRec.Code != http.StatusOK {
-		t.Fatalf("expected /healthz to stay open, got %d", healthRec.Code)
+	// аутентификации: первый нужен liveness-пробам, второй — устройствам,
+	// которые забирают оттуда публичный ключ шлюза до всякой авторизации.
+	for _, path := range []string{"/healthz", "/api/v1/gateway"} {
+		openReq := httptest.NewRequest(http.MethodGet, path, nil)
+		openRec := httptest.NewRecorder()
+		srv.ServeHTTP(openRec, openReq)
+		if openRec.Code != http.StatusOK {
+			t.Fatalf("%s должен оставаться открытым, получено %d", path, openRec.Code)
+		}
+	}
+}
+
+// Метрики раскрывают эксплуатационную картину шлюза (сколько устройств,
+// рукопожатий, провалов проверки прошивки), поэтому при включённой
+// аутентификации они не должны отдаваться без токена.
+func TestMetricsRequireAuth(t *testing.T) {
+	gw, err := gateway.New()
+	if err != nil {
+		t.Fatalf("new gateway: %v", err)
+	}
+	srv := New(gw, Options{AdminToken: "super-secret-token"})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/metrics", nil)
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("метрики без токена: ожидался 401, получено %d", rec.Code)
+	}
+
+	authReq := httptest.NewRequest(http.MethodGet, "/api/v1/metrics", nil)
+	authReq.Header.Set("Authorization", "Bearer super-secret-token")
+	authRec := httptest.NewRecorder()
+	srv.ServeHTTP(authRec, authReq)
+	if authRec.Code != http.StatusOK {
+		t.Fatalf("метрики с токеном: ожидался 200, получено %d", authRec.Code)
+	}
+}
+
+// /api/v1/gateway обязан работать без токена (устройству нужен публичный ключ
+// шлюза до рукопожатия), но служебные поля должен отдавать только
+// авторизованному запросу.
+func TestGatewayInfoHidesOperationalFieldsWithoutAuth(t *testing.T) {
+	gw, err := gateway.New()
+	if err != nil {
+		t.Fatalf("new gateway: %v", err)
+	}
+	gw.LogSessionKeys = true
+	srv := New(gw, Options{AdminToken: "super-secret-token"})
+
+	decode := func(t *testing.T, token string) map[string]any {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/gateway", nil)
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("ожидался 200, получено %d", rec.Code)
+		}
+		var body map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatalf("разбор ответа: %v", err)
+		}
+		return body
+	}
+
+	anon := decode(t, "")
+	if anon["kem_pub_hex"] == "" || anon["kem_pub_hex"] == nil {
+		t.Error("публичный ключ шлюза должен отдаваться без токена")
+	}
+	if _, leaked := anon["log_session_keys"]; leaked {
+		t.Error("log_session_keys не должен раскрываться без токена")
+	}
+
+	authed := decode(t, "super-secret-token")
+	if got, ok := authed["log_session_keys"].(bool); !ok || !got {
+		t.Errorf("с токеном ожидалось log_session_keys=true, получено %v", authed["log_session_keys"])
+	}
+
+	// Неверный токен приравнивается к анонимному запросу: ключ отдаём,
+	// служебные поля — нет.
+	wrong := decode(t, "wrong-token")
+	if _, leaked := wrong["log_session_keys"]; leaked {
+		t.Error("log_session_keys не должен раскрываться по неверному токену")
+	}
+}
+
+// По умолчанию кросс-доменные запросы не разрешаются: дашборд отдаётся с того
+// же origin, а раньше пустой список origin означал "*", то есть любой сайт мог
+// обращаться к API шлюза из браузера пользователя.
+func TestCORSClosedByDefault(t *testing.T) {
+	srv, _ := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/gateway", nil)
+	req.Header.Set("Origin", "https://evil.example")
+	rec := httptest.NewRecorder()
+	srv.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("без настройки origin заголовок CORS не должен выставляться, получено %q", got)
+	}
+
+	gw, err := gateway.New()
+	if err != nil {
+		t.Fatalf("new gateway: %v", err)
+	}
+	allowed := New(gw, Options{AllowedOrigins: []string{"https://ops.example"}})
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/gateway", nil)
+	req2.Header.Set("Origin", "https://ops.example")
+	rec2 := httptest.NewRecorder()
+	allowed.ServeHTTP(rec2, req2)
+	if got := rec2.Header().Get("Access-Control-Allow-Origin"); got != "https://ops.example" {
+		t.Errorf("разрешённый origin должен отражаться в ответе, получено %q", got)
 	}
 }
 

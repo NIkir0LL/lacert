@@ -88,6 +88,11 @@ curl http://localhost:8080/api/v1/metrics                # aggregated metrics
 curl http://localhost:8080/api/v1/gateway                # gateway public KEM key
 ```
 
+The examples above assume the gateway runs without `LACERT_ADMIN_TOKEN`, so
+authorization is disabled. With a token set, add
+`-H "Authorization: Bearer TOKEN"` to every request except `/healthz` and
+`/api/v1/gateway`.
+
 ## 5. What to exercise when testing
 
 The main mechanisms worth running through:

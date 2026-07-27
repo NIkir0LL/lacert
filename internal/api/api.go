@@ -46,46 +46,60 @@ type Options struct {
 	AdminToken string
 
 	// AllowedOrigins — список разрешённых CORS-origin для браузерных
-	// запросов с веб-страницы регистрации. Пусто или содержит "*" —
-	// разрешить любой origin (ок для прототипа в изолированной сети).
+	// запросов с веб-страницы регистрации. Если пусто, CORS-заголовки не
+	// выставляются вовсе: встроенный дашборд отдаётся с того же origin, что и
+	// API, и в кросс-доменных разрешениях не нуждается, а сторонние страницы
+	// по умолчанию доступа не получают. Чтобы разрешить конкретные внешние
+	// origin, перечислите их явно (LACERT_CORS_ORIGINS). Значение "*"
+	// по-прежнему допустимо, но задаётся только осознанно.
 	AllowedOrigins []string
 }
 
 // Server — HTTP-обработчик REST API шлюза.
 type Server struct {
-	GW       *gateway.Gateway
-	TCPSrv   *tcpserver.Server
-	Router   chi.Router
-	authMode string // "disabled" | "bearer-token" — для логирования при старте
+	GW     *gateway.Gateway
+	TCPSrv *tcpserver.Server
+	Router chi.Router
+	// adminToken хранится, чтобы обработчики могли проверить авторизацию сами,
+	// а не только через middleware. Это нужно эндпоинту /api/v1/gateway: он
+	// обязан оставаться открытым (устройства берут оттуда публичный ключ шлюза
+	// до всякой авторизации), но часть полей ответа выдаёт только по токену.
+	adminToken string
+	authMode   string // "disabled" | "bearer-token" — для логирования при старте
 }
 
 // New создаёт REST API поверх уже настроенного gateway.Gateway.
 func New(gw *gateway.Gateway, opts Options) *Server {
-	s := &Server{GW: gw, TCPSrv: opts.TCPStatus}
-
-	origins := opts.AllowedOrigins
-	if len(origins) == 0 {
-		origins = []string{"*"}
-	}
+	s := &Server{GW: gw, TCPSrv: opts.TCPStatus, adminToken: opts.AdminToken}
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(securityHeaders)
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   origins,
-		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
-		AllowCredentials: false,
-		MaxAge:           300,
-	}))
+	// CORS включаем только если origin перечислены явно. Пустой список —
+	// значит кросс-доменный доступ не нужен: дашборд живёт на том же origin.
+	// Раньше пустой список означал "*", то есть любой сайт в браузере
+	// пользователя мог обращаться к API шлюза.
+	if len(opts.AllowedOrigins) > 0 {
+		r.Use(cors.Handler(cors.Options{
+			AllowedOrigins:   opts.AllowedOrigins,
+			AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+			AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
+			AllowCredentials: false,
+			MaxAge:           300,
+		}))
+	}
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+	// /api/v1/gateway остаётся без обязательной авторизации намеренно: с него
+	// устройство (прошивка ESP32, отладочный клиент, эмулятор) забирает
+	// публичный ML-KEM-ключ шлюза перед первым рукопожатием, когда никакого
+	// токена у него нет. Открыт только сам публичный ключ — служебные поля
+	// обработчик отдаёт лишь авторизованному запросу.
 	r.Get("/api/v1/gateway", s.getGatewayInfo)
-	r.Get("/api/v1/metrics", s.getMetrics)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		if opts.AdminToken != "" {
@@ -104,6 +118,11 @@ func New(gw *gateway.Gateway, opts Options) *Server {
 		r.Get("/telemetry", s.getTelemetry)
 		r.Get("/rotations", s.getRotations)
 		r.Get("/firmware-checks", s.getFirmwareChecks)
+		// Метрики — эксплуатационные данные (сколько устройств, рукопожатий,
+		// отказов проверки прошивки). Открытыми они дают наблюдателю картину
+		// работы шлюза, поэтому идут под той же авторизацией, что и остальная
+		// админская часть. Потребители (дашборд, stresstest) токен передают.
+		r.Get("/metrics", s.getMetrics)
 	})
 
 	s.Router = r
@@ -419,12 +438,35 @@ func (s *Server) revokeDevice(w http.ResponseWriter, r *http.Request) {
 // log_session_keys сообщает фронтенду, включён ли тестовый режим, в котором
 // журнал ротаций содержит полные значения ключей (см. Gateway.LogSessionKeys) —
 // веб-интерфейс показывает по этому флагу явное предупреждение.
+// getGatewayInfo отдаёт публичный ML-KEM-ключ шлюза — его запрашивает
+// устройство перед первым рукопожатием, поэтому эндпоинт доступен без токена.
+// Ключ публичный по определению, скрывать его нечего.
+//
+// Остальные поля — служебные и раскрывают режим работы шлюза, поэтому идут
+// только авторизованному запросу. В частности log_session_keys показывает,
+// пишет ли шлюз сеансовые ключи в журнал: для наблюдателя это подсказка, где
+// искать ключи, и знать её посторонним незачем.
 func (s *Server) getGatewayInfo(w http.ResponseWriter, r *http.Request) {
 	pubBytes := s.GW.KEM.PublicKeyBytes()
-	writeJSON(w, http.StatusOK, map[string]any{
-		"kem_pub_hex":      hex.EncodeToString(pubBytes),
-		"log_session_keys": s.GW.LogSessionKeys,
-	})
+	resp := map[string]any{
+		"kem_pub_hex": hex.EncodeToString(pubBytes),
+	}
+	if s.requestAuthorized(r) {
+		resp["log_session_keys"] = s.GW.LogSessionKeys
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// requestAuthorized сообщает, вправе ли запрос видеть служебные поля.
+// Если токен на шлюзе не настроен, аутентификация выключена целиком и скрывать
+// поля не от кого — тогда доступ считается разрешённым, чтобы локальная
+// разработка и дашборд без токена работали как раньше.
+func (s *Server) requestAuthorized(r *http.Request) bool {
+	if s.adminToken == "" {
+		return true
+	}
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	return ok && subtle.ConstantTimeCompare([]byte(token), []byte(s.adminToken)) == 1
 }
 
 // getMetrics — агрегированные счётчики шлюза для дашборда: сколько рукопожатий

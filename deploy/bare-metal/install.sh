@@ -31,10 +31,18 @@ if [[ -f "$ENV_FILE" ]]; then
   PG_PASSWORD="$(grep -oP '(?<=password=)[^ ]+' "$ENV_FILE" | head -1)"
   ADMIN_TOKEN="$(grep -oP '(?<=^LACERT_ADMIN_TOKEN=).+' "$ENV_FILE" | head -1)"
   ENV_FILE_EXISTS=1
+  # Установки до версии 1.1.0 записывали в env-файл LACERT_CORS_ORIGINS=*, то
+  # есть разрешали обращаться к REST API любому сайту. Сам файл мы не правим —
+  # это конфигурация оператора — но предупредим об этом в конце установки.
+  CORS_WILDCARD=0
+  if grep -qE '^LACERT_CORS_ORIGINS=\*[[:space:]]*$' "$ENV_FILE"; then
+    CORS_WILDCARD=1
+  fi
 else
   PG_PASSWORD="$(openssl rand -hex 16 2>/dev/null || head -c16 /dev/urandom | xxd -p)"
   ADMIN_TOKEN="$(openssl rand -hex 32 2>/dev/null || head -c32 /dev/urandom | xxd -p)"
   ENV_FILE_EXISTS=0
+  CORS_WILDCARD=0
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -109,7 +117,13 @@ LACERT_TCP_ADDR=:7700
 LACERT_HTTP_ADDR=:8080
 LACERT_MQTT_ADDR=:1883
 LACERT_ADMIN_TOKEN=${ADMIN_TOKEN}
-LACERT_CORS_ORIGINS=*
+# Кросс-доменные запросы по умолчанию не разрешены, и это нормально: дашборд
+# отдаётся тем же процессом на порту 8080, то есть с того же origin, и в
+# CORS-разрешениях не нуждается. Раскомментируйте и перечислите адреса только
+# если к REST API будет обращаться СТОРОННЯЯ веб-страница с другого адреса.
+# Значение "*" открывает API любому сайту в браузере пользователя — не ставьте
+# его на сервере, доступном не только из доверенной сети.
+# LACERT_CORS_ORIGINS=https://lacert.example.com
 # Раскомментируйте, чтобы шлюз сам поднял N программных ESP32 для
 # демонстрации/тестов без реального железа (см. internal/emulator):
 # LACERT_EMULATE_DEVICES=2
@@ -203,6 +217,17 @@ echo "  curl -s http://localhost:8080/healthz     # проверка живос�
 echo "  cat $ENV_FILE                              # пароль БД и admin-токен"
 echo "  systemctl restart lacert-gatewayd         # перезапуск"
 echo "  systemctl stop lacert-gatewayd            # остановка"
+echo
+if [[ "${CORS_WILDCARD:-0}" == "1" ]]; then
+  echo
+  echo "ВНИМАНИЕ: в $ENV_FILE осталась строка LACERT_CORS_ORIGINS=* от прежней"
+  echo "установки. Она разрешает обращаться к REST API шлюза любому сайту,"
+  echo "открытому в браузере администратора. Дашборд отдаётся с того же адреса"
+  echo "и в этом разрешении не нуждается — строку можно удалить:"
+  echo "  sed -i '/^LACERT_CORS_ORIGINS=\*$/d' $ENV_FILE && systemctl restart lacert-gatewayd"
+  echo "Если к API обращается сторонняя веб-страница, вместо удаления перечислите"
+  echo "её адрес явно: LACERT_CORS_ORIGINS=https://ваш-адрес"
+fi
 echo
 echo "Не забудьте открыть в файрволе порты 7700 (TCP/LACERT), 8080 (REST + веб-страница),"
 echo "1883 (MQTT), если устройства/веб-страница будут подключаться извне:"

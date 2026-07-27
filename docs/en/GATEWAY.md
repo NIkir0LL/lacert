@@ -67,8 +67,19 @@ Base path `/api/v1`, JSON throughout.
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/healthz` | liveness probe, returns `ok` |
-| GET | `/api/v1/gateway` | the gateway's public ML-KEM key (the device needs it for the handshake) |
-| GET | `/api/v1/metrics` | gateway counters (see below) |
+| GET | `/api/v1/gateway` | the gateway's public ML-KEM key |
+
+`/api/v1/gateway` is intentionally open: the firmware requests it at startup,
+before the first handshake, when it has no token yet. The key itself is public,
+so there is nothing to hide. Operational fields of the response (such as
+`log_session_keys`, which tells whether the gateway writes session keys to its
+log) are returned only with a valid token — an outsider has no business knowing
+how the gateway is configured.
+
+Note that in the current scheme the shared secret is encapsulated under the
+**device's** public key (see `PROTOCOL_SPEC.md`, section 3.2), so the gateway's
+own public key takes no part in the handshake: the firmware retrieves it but
+never uses it.
 
 ### Counters at `/api/v1/metrics`
 
@@ -119,6 +130,7 @@ If `LACERT_ADMIN_TOKEN` is set, these routes require the header
 | GET | `/api/v1/telemetry` | telemetry readings |
 | GET | `/api/v1/rotations` | key-rotation log |
 | GET | `/api/v1/firmware-checks` | firmware integrity check log (`?device_id=`, `?limit=`) |
+| GET | `/api/v1/metrics` | gateway counters (see below) |
 
 ### Enrolling a device (POST /devices body)
 
