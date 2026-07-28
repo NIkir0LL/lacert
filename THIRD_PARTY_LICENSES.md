@@ -12,7 +12,9 @@ respective components.
 | github.com/go-chi/chi/v5 | MIT | HTTP router |
 | github.com/go-chi/cors | MIT | CORS middleware |
 | github.com/mochi-mqtt/server/v2 | MIT | embedded MQTT broker |
-| github.com/jackc/pgx/v5 | MIT | PostgreSQL driver |
+| gorm.io/gorm | MIT | ORM used by the PostgreSQL store |
+| gorm.io/driver/postgres | MIT | GORM driver for PostgreSQL |
+| github.com/jackc/pgx/v5 | MIT | PostgreSQL driver (used through the GORM driver) |
 | **github.com/eclipse/paho.mqtt.golang** | **EPL-2.0 / EDL-1.0** | MQTT client — see note below |
 
 ## Note on Eclipse Paho (EPL-2.0)
