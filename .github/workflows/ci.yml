@@ -1,0 +1,85 @@
+name: Проверки
+
+# Те же проверки, что делает check-all.sh локально: сборка, статический анализ,
+# тесты, детектор гонок и покрытие. Отличие одно — здесь поднимается настоящая
+# PostgreSQL, поэтому тесты хранилища не пропускаются, как это происходит на
+# машине без базы.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  checks:
+    name: Сборка и тесты
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: lacert
+          POSTGRES_DB: lacert
+        ports:
+          - 5432:5432
+        # Без проверки готовности шаги начнутся раньше, чем база примет
+        # подключения, и тесты хранилища молча уйдут в пропуск.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      LACERT_TEST_PG_DSN: "host=localhost user=postgres password=lacert dbname=lacert port=5432 sslmode=disable"
+
+    steps:
+      - name: Забрать исходники
+        uses: actions/checkout@v4
+
+      - name: Поставить Go
+        uses: actions/setup-go@v5
+        with:
+          # Версия берётся из go.mod, чтобы не разъезжалась с проектом.
+          go-version-file: go.mod
+          cache: true
+
+      - name: Сборка
+        run: go build ./...
+
+      - name: Статический анализ
+        run: go vet ./...
+
+      - name: Форматирование
+        run: |
+          # gofmt -l печатает файлы, которые надо переформатировать.
+          # Пустой вывод означает, что всё в порядке.
+          unformatted="$(gofmt -s -l cmd internal)"
+          if [ -n "$unformatted" ]; then
+            echo "Эти файлы не отформатированы:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: Тесты с покрытием
+        run: go test ./... -count=1 -cover
+
+      - name: Детектор гонок данных
+        run: go test -race ./internal/... -count=1
+
+      - name: Проверить, что тесты хранилища не пропущены
+        run: |
+          # Страховка от тихой деградации: если база вдруг окажется
+          # недоступна, тесты pgstore пропустятся, проверки останутся
+          # зелёными, а хранилище — непроверенным. Ловим это явно.
+          out="$(go test ./internal/store/pgstore/ -count=1 -v 2>&1)"
+          echo "$out" | tail -20
+          if echo "$out" | grep -q "postgres unavailable"; then
+            echo "Тесты хранилища пропущены — база недоступна."
+            exit 1
+          fi
