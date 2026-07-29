@@ -86,6 +86,16 @@ lives in the `firmware/` subdirectory. When building from the
 `lacert-crypto-esp32` repository the firmware sits at the repository root —
 skip the `cd firmware` step, everything else is the same.
 
+The component-download step is only needed when building **from a repository
+clone**. If you work with the full project tree, where `firmware/components/`
+is already populated (`ml_kem/` and `blake3/` with their sources and
+`CMakeLists.txt`), there is no `scripts/fetch-components.sh` there and none is
+needed — go straight to selecting the board. Checking takes one command:
+
+```bash
+ls firmware/components/    # if ml_kem and blake3 are there, nothing to download
+```
+
 ```bash
 cd firmware
 

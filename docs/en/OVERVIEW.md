@@ -90,10 +90,41 @@ matters more than clock speed. The full table is in `FIRMWARE.md`.
 
 ---
 
+## Scope and threat model
+
+The system is a prototype for an isolated segment of a corporate network, and it
+is worth stating its assumptions plainly.
+
+**Authentication is one-way.** The device proves its identity to the gateway with
+a signature bound to an efuse key. The gateway presents no signature in return,
+so its authenticity is not established by the protocol — trust in it comes from
+the deployment conditions rather than from cryptography. On a network where an
+active man-in-the-middle is possible, that is not enough.
+
+**Control frames carry no signature.** The key-rotation and error frames
+(types 8, 9 and 10) are protected only by travelling over an already encrypted
+channel; they have no signature or MAC of their own.
+
+**The embedded MQTT broker runs in plaintext** and accepts any client. It is
+meant for the test bench and for demonstrations, not for carrying data outside a
+trusted segment.
+
+**Debug mode exposes session keys.** The `LACERT_LOG_SESSION_KEYS` variable makes
+the gateway write session keys to its log. That exists for examining handshakes
+on the bench and must stay off everywhere except the lab.
+
+**The device registry does not handle key replacement.** Device keys live in NVS
+and stand in for efuse: if that memory is erased, the device generates fresh keys
+while the registry still holds the old record, and the handshake fails. There is
+no supported way to re-register a device yet.
+
+These limits are neither hidden nor glossed over: they mark the area in which the
+results hold, and they set the direction for further work.
+
 ## Repository layout
 
 ```
-lacert5/
+lacert/
 ├── cmd/                      applications (main packages)
 │   ├── gatewayd/             the production gateway
 │   ├── devicesim/            device simulator (for testing without hardware)

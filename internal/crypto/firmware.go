@@ -3,6 +3,7 @@ package crypto
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
 )
 
@@ -78,7 +79,11 @@ func VerifyFirmwareResponse(
 		return FirmwareCheckResult{}, fmt.Errorf("verify firmware response signature: %w", err)
 	}
 
-	hashMatches := resp.FirmwareHash == referenceHash
+	// Сравнение за постоянное время. Хеш прошивки не секрет, и подделать ответ
+	// без валидной подписи нельзя, так что практической атаки по времени здесь
+	// нет. Но приучать сравнивать криптографические значения обычным == не
+	// стоит: в другом месте такая привычка обойдётся дорого.
+	hashMatches := subtle.ConstantTimeCompare(resp.FirmwareHash[:], referenceHash[:]) == 1
 
 	return FirmwareCheckResult{SignatureValid: sigValid, HashMatches: hashMatches}, nil
 }

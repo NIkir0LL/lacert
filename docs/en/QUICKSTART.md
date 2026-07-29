@@ -15,7 +15,7 @@ the protocol are described in full in `OVERVIEW.md` and `PROTOCOL_SPEC.md`.
 ## 1. Build
 
 ```bash
-# from the project root (the lacert5 directory)
+# from the project root (the lacert directory)
 go build ./...
 ```
 
