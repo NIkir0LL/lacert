@@ -40,10 +40,10 @@ jobs:
 
     steps:
       - name: Забрать исходники
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Поставить Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           # Версия берётся из go.mod, чтобы не разъезжалась с проектом.
           go-version-file: go.mod

@@ -29,6 +29,11 @@
 #define LACERT_SHA256_SIZE           32
 #define LACERT_FW_CHALLENGE_SIZE     64
 #define LACERT_FW_HASH_SIZE          32
+// Ограничение полезной нагрузки одного пакета данных. Должно совпадать с
+// MaxPayloadSize в internal/crypto/aead.go на стороне шлюза: пакет длиннее
+// шлюз отвергнет, поэтому отсекаем его на устройстве и не тратим время на
+// шифрование и передачу.
+#define LACERT_MAX_PAYLOAD_SIZE      380
 #define LACERT_MAX_SIG_SIZE          128  // с запасом над DER ECDSA P-256 (~72)
 
 // --- Строки-сепараторы для вывода ключей (БЕЗ завершающего нуля при хешировании!) ---

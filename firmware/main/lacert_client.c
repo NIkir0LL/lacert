@@ -119,6 +119,9 @@ lacert_err_t lacert_do_handshake(lacert_session_t *s) {
 lacert_err_t lacert_send_data(lacert_session_t *s, const char *payload) {
     if (!s->has_session) return LACERT_ERR_STATE;
     size_t pt_len = strlen(payload);
+    // Шлюз отвергает пакеты длиннее протокольного лимита, поэтому проверяем
+    // здесь: иначе устройство напрасно шифрует данные и занимает канал.
+    if (pt_len > LACERT_MAX_PAYLOAD_SIZE) return LACERT_ERR_DECODE;
 
     uint8_t nonce[LACERT_CHACHA_NONCE_SIZE];
     uint8_t *ct = malloc(pt_len + LACERT_CHACHA_TAG_SIZE);

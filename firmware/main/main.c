@@ -42,13 +42,13 @@ static const char *TAG = "lacert";
 // ---------------------------------------------------------------------------
 // Настройки стенда. Проще всего задать здесь; при желании вынести в menuconfig.
 // ---------------------------------------------------------------------------
-#define LACERT_WIFI_SSID      "DIR-615T-6a83"
-#define LACERT_WIFI_PASS      "30016415"
-#define LACERT_GW_HOST        "192.168.0.37"   // IP шлюза в локальной сети
+#define LACERT_WIFI_SSID      "Samsung"
+#define LACERT_WIFI_PASS      "1234567890"
+#define LACERT_GW_HOST        "192.168.1.10"   // IP шлюза в локальной сети
 #define LACERT_GW_HTTP_PORT   8080
 #define LACERT_GW_TCP_PORT    7700
-#define LACERT_DEVICE_ID      "tete-esp32-1"
-#define LACERT_ADMIN_TOKEN    "41b1751e147ce88ff135ba73bc537031f2bbb886b7a260c27a6f622bed941b8b"               // токен шлюза, если включён
+#define LACERT_DEVICE_ID      "xiao-esp32-1"
+#define LACERT_ADMIN_TOKEN    ""               // токен шлюза, если включён
 
 #define TELEMETRY_PERIOD_MS   2000
 #define RECONNECT_DELAY_MS    2000
@@ -337,8 +337,10 @@ static int from_hex(const char *h, uint8_t *out, int maxlen) {
     return n;
 }
 
-// Буфер ответа HTTP.
-typedef struct { char *buf; int len; int cap; } http_resp_t;
+// Буфер ответа HTTP. Флаг truncated поднимается, если ответ не поместился:
+// без него данные молча отбрасывались, а вызывающий код разбирал обрезанный
+// JSON и получал невнятную ошибку разбора вместо понятной причины.
+typedef struct { char *buf; int len; int cap; bool truncated; } http_resp_t;
 
 static esp_err_t http_evt(esp_http_client_event_t *evt) {
     http_resp_t *r = (http_resp_t *)evt->user_data;
@@ -348,6 +350,8 @@ static esp_err_t http_evt(esp_http_client_event_t *evt) {
             memcpy(r->buf + r->len, evt->data, n);
             r->len += n;
             r->buf[r->len] = 0;
+        } else {
+            r->truncated = true;
         }
     }
     return ESP_OK;
@@ -387,7 +391,7 @@ static bool register_device(lacert_session_t *s) {
              LACERT_GW_HOST, LACERT_GW_HTTP_PORT);
 
     char resp[256] = {0};
-    http_resp_t r = { .buf = resp, .len = 0, .cap = sizeof(resp) };
+    http_resp_t r = { .buf = resp, .len = 0, .cap = sizeof(resp), .truncated = false };
     esp_http_client_config_t cfg = {
         .url = url, .method = HTTP_METHOD_POST,
         .event_handler = http_evt, .user_data = &r, .timeout_ms = 8000,
@@ -429,7 +433,7 @@ static bool fetch_gateway_key(lacert_session_t *s) {
     char *resp = malloc(cap);
     if (!resp) return false;
     resp[0] = 0;
-    http_resp_t r = { .buf = resp, .len = 0, .cap = cap };
+    http_resp_t r = { .buf = resp, .len = 0, .cap = cap, .truncated = false };
 
     esp_http_client_config_t cfg = {
         .url = url, .method = HTTP_METHOD_GET,
@@ -437,8 +441,14 @@ static bool fetch_gateway_key(lacert_session_t *s) {
     };
     esp_http_client_handle_t c = esp_http_client_init(&cfg);
     bool ok = false;
-    if (esp_http_client_perform(c) == ESP_OK &&
-        esp_http_client_get_status_code(c) == 200) {
+    // Запрос выполняем первым: флаг truncated поднимается обработчиком событий
+    // во время передачи, до неё он всегда сброшен.
+    esp_err_t perr = esp_http_client_perform(c);
+    int status = esp_http_client_get_status_code(c);
+    if (r.truncated) {
+        // Обрезанный ответ разбирать бессмысленно: ключ в нём заведомо неполный.
+        ESP_LOGW(TAG, "ответ шлюза не поместился в буфер (%d байт), разбор пропущен", cap);
+    } else if (perr == ESP_OK && status == 200) {
         char *kp = strstr(resp, "kem_pub_hex");
         if (kp && (kp = strchr(kp, ':')) && (kp = strchr(kp, '"'))) {
             kp++;
