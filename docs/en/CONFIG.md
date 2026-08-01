@@ -51,6 +51,7 @@ LACERT_PG_DSN=host=localhost user=lacert password=... dbname=lacert port=5432 ss
 |----------|---------|---------|
 | `LACERT_ADMIN_TOKEN` | unset | token for protected REST routes (`Authorization: Bearer <token>`) |
 | `LACERT_NONCE_TTL` | `5m` | lifetime of a nonce in replay protection |
+| `LACERT_MAX_CONNECTIONS` | `1024` | cap on simultaneous device connections. Anything above it is rejected immediately: each connection holds a goroutine and buffers before the device is even known to be registered |
 
 If no token is set, **REST authorization is disabled** — suitable only for local
 development. The same token goes into the board's firmware

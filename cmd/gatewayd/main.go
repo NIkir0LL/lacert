@@ -167,6 +167,12 @@ func main() {
 			logger.Info("TTL nonce replay-защиты переопределён", "ttl", d)
 		}
 	}
+	if v := os.Getenv("LACERT_MAX_CONNECTIONS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			tcpserver.MaxConnections = n
+			logger.Info("предел одновременных соединений переопределён", "limit", n)
+		}
+	}
 	if v := os.Getenv("LACERT_PENDING_HANDSHAKE_TIMEOUT"); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			gateway.SetPendingHandshakeTimeout(d)

@@ -48,6 +48,16 @@ const keepAlivePeriod = 30 * time.Second
 // байт) даже в медленной сети.
 const WriteTimeout = 15 * time.Second
 
+// MaxConnections — предельное число одновременно обслуживаемых соединений.
+// Каждое принятое соединение занимает горутину и буферы, а рукопожатие ещё до
+// проверки регистрации выполняет разбор кадров, поэтому без потолка поток
+// подключений извне вынуждает шлюз выделять память неограниченно. Значение
+// выбрано с большим запасом относительно ожидаемого парка устройств: шлюз
+// рассчитан на десятки-сотни устройств, а лимит начинает действовать на
+// порядок позже. Переменная, а не константа, чтобы поднять её на стенде
+// нагрузочного тестирования (LACERT_MAX_CONNECTIONS, см. cmd/gatewayd).
+var MaxConnections = 1024
+
 // connEntry — состояние одного активного соединения устройства. Хранится в
 // Server.conns как указатель, чтобы можно было надёжно отличить "эта же
 // горутина обслуживает актуальное соединение" от "устройство уже
@@ -113,10 +123,11 @@ type Server struct {
 	GW     *gateway.Gateway
 	Logger *slog.Logger
 
-	mu    sync.Mutex
-	conns map[string]*connEntry
-	ln    net.Listener
-	wg    sync.WaitGroup
+	mu     sync.Mutex
+	conns  map[string]*connEntry
+	ln     net.Listener
+	wg     sync.WaitGroup
+	active int // текущее число обслуживаемых соединений, под mu
 
 	// OnData вызывается каждый раз, когда шлюз успешно расшифровал пакет
 	// данных от устройства — сюда подключается передача в корпоративную
@@ -162,6 +173,21 @@ func (s *Server) Serve(ln net.Listener) error {
 			}
 			return fmt.Errorf("accept: %w", err)
 		}
+		// Потолок проверяем до запуска горутины: отказ должен быть дешёвым,
+		// иначе защита сама становится нагрузкой.
+		s.mu.Lock()
+		over := s.active >= MaxConnections
+		if !over {
+			s.active++
+		}
+		s.mu.Unlock()
+		if over {
+			s.Logger.Warn("достигнут предел одновременных соединений, подключение отклонено",
+				"remote", conn.RemoteAddr().String(), "limit", MaxConnections)
+			_ = conn.Close()
+			continue
+		}
+
 		if tcpConn, ok := conn.(*net.TCPConn); ok {
 			_ = tcpConn.SetKeepAlive(true)
 			_ = tcpConn.SetKeepAlivePeriod(keepAlivePeriod)
@@ -169,9 +195,22 @@ func (s *Server) Serve(ln net.Listener) error {
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
+			defer func() {
+				s.mu.Lock()
+				s.active--
+				s.mu.Unlock()
+			}()
 			s.handleConn(conn)
 		}()
 	}
+}
+
+// ActiveConnections возвращает число обслуживаемых сейчас соединений.
+// Нужен тестам и полезен для наблюдения за приближением к пределу.
+func (s *Server) ActiveConnections() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.active
 }
 
 // Shutdown закрывает listener и все активные соединения с устройствами,

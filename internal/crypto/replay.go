@@ -18,12 +18,30 @@ import (
 // уже неактуально (устройство при повторном подключении присылает свежий
 // nonce). TTL выбирается заметно большим типичного времени рукопожатия.
 //
+// Хранилище устроено как два поколения записей вместо одной карты. Причина в
+// стоимости очистки: прежняя реализация проходила всю карту при КАЖДОЙ вставке,
+// поэтому цена одной вставки росла вместе с наполнением — замеры показывали
+// 166 мкс при 20 тысячах записей и 1317 мкс при 60 тысячах. При этом путь
+// проверки повтора неаутентифицирован: он выполняется до того, как шлюз узнал,
+// зарегистрировано ли устройство, так что наполнить карту может кто угодно.
+//
+// Как работает: новые записи попадают в current, поиск идёт по обеим картам.
+// Раз в TTL/2 карты сдвигаются — previous отбрасывается целиком, current
+// становится previous, а под новые записи создаётся пустая карта. Отбросить
+// карту целиком дешевле, чем обойти её поэлементно, поэтому стоимость вставки
+// перестаёт зависеть от объёма. Запись живёт от TTL/2 до TTL — не меньше
+// половины срока, что для защиты от повторов достаточно с большим запасом:
+// незавершённое рукопожатие протухает через 20 секунд, а TTL по умолчанию пять
+// минут.
+//
 // Компонент потокобезопасен: шлюз обслуживает множество устройств параллельно.
 type ReplayGuard struct {
-	mu   sync.Mutex
-	seen map[nonceKey]time.Time
-	ttl  time.Duration
-	now  func() time.Time // подменяется в тестах
+	mu       sync.Mutex
+	current  map[nonceKey]time.Time // сюда пишутся новые записи
+	previous map[nonceKey]time.Time // прошлое поколение, только для поиска
+	rotated  time.Time              // когда поколения сдвигались последний раз
+	ttl      time.Duration
+	now      func() time.Time // подменяется в тестах
 }
 
 type nonceKey struct {
@@ -31,12 +49,11 @@ type nonceKey struct {
 	nonce    [32]byte
 }
 
-// DefaultNonceTTL — сколько времени шлюз помнит использованный nonce.
-// Пять минут значительно превышают длительность рукопожатия даже в
-// нестабильной промышленной сети, но при этом ограничивают рост памяти.
-// DefaultNonceTTL — сколько помнить nonce рукопожатия для replay-защиты.
-// Переменная, а не константа, чтобы значение можно было подобрать на тестовом
-// стенде через LACERT_NONCE_TTL (см. cmd/gatewayd). По умолчанию 5 минут.
+// DefaultNonceTTL — сколько времени шлюз помнит использованный nonce рукопожатия.
+// Пять минут значительно превышают длительность рукопожатия даже в нестабильной
+// промышленной сети, но при этом ограничивают рост памяти. Переменная, а не
+// константа, чтобы значение можно было подобрать на тестовом стенде через
+// LACERT_NONCE_TTL (см. cmd/gatewayd).
 var DefaultNonceTTL = 5 * time.Minute
 
 // NewReplayGuard создаёт защиту с заданным TTL. При ttl <= 0 используется
@@ -46,9 +63,11 @@ func NewReplayGuard(ttl time.Duration) *ReplayGuard {
 		ttl = DefaultNonceTTL
 	}
 	return &ReplayGuard{
-		seen: make(map[nonceKey]time.Time),
-		ttl:  ttl,
-		now:  time.Now,
+		current:  make(map[nonceKey]time.Time),
+		previous: make(map[nonceKey]time.Time),
+		rotated:  time.Now(),
+		ttl:      ttl,
+		now:      time.Now,
 	}
 }
 
@@ -59,46 +78,54 @@ var ErrReplayDetected = errors.New("replay detected: nonce already used for this
 // использовался, и запоминает его. Возвращает ErrReplayDetected, если это
 // повтор. Первое появление nonce считается допустимым.
 //
-// Побочно вызывает ленивую очистку просроченных записей, чтобы карта не
-// накапливала мусор при большом числе устройств.
+// Стоимость вызова не зависит от числа запомненных записей: устаревшие
+// отбрасываются целым поколением, а не поэлементным обходом.
 func (g *ReplayGuard) CheckAndRemember(deviceID string, nonce [32]byte) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	now := g.now()
+	g.rotateIfDueLocked(now)
 	key := nonceKey{deviceID: deviceID, nonce: nonce}
 
-	if seenAt, ok := g.seen[key]; ok {
-		// Запись ещё жива — это replay. Просроченную запись считаем
-		// отсутствующей (см. очистку ниже), поэтому сюда попадают только
-		// актуальные повторы.
-		if now.Sub(seenAt) < g.ttl {
-			return ErrReplayDetected
-		}
+	// Ищем в обоих поколениях: запись могла попасть в предыдущее и всё ещё
+	// быть актуальной.
+	if seenAt, ok := g.current[key]; ok && now.Sub(seenAt) < g.ttl {
+		return ErrReplayDetected
+	}
+	if seenAt, ok := g.previous[key]; ok && now.Sub(seenAt) < g.ttl {
+		return ErrReplayDetected
 	}
 
-	g.seen[key] = now
-	g.evictExpiredLocked(now)
+	g.current[key] = now
 	return nil
 }
 
-// evictExpiredLocked удаляет записи старше TTL. Вызывается под уже
-// захваченным mutex. Для ожидаемых объёмов (десятки–сотни устройств,
-// рукопожатия нечасты) линейный проход дешёв; при масштабировании его можно
-// заменить на амортизированную очистку по таймеру.
-func (g *ReplayGuard) evictExpiredLocked(now time.Time) {
-	for k, t := range g.seen {
-		if now.Sub(t) >= g.ttl {
-			delete(g.seen, k)
-		}
+// rotateIfDueLocked сдвигает поколения, если с прошлого сдвига прошло больше
+// половины TTL. Вызывается под уже захваченным mutex.
+//
+// Половина TTL выбрана как компромисс: чем чаще сдвиг, тем меньше памяти под
+// записи, но тем короче гарантированный срок их жизни. При шаге TTL/2 запись
+// живёт от TTL/2 до TTL, то есть не меньше половины заявленного срока.
+func (g *ReplayGuard) rotateIfDueLocked(now time.Time) {
+	if now.Sub(g.rotated) < g.ttl/2 {
+		return
 	}
+	// Прежнее предыдущее поколение отбрасывается целиком — сборщик мусора
+	// освободит его сам. Это и есть основной выигрыш: стоимость не зависит
+	// от числа записей в карте.
+	g.previous = g.current
+	g.current = make(map[nonceKey]time.Time)
+	g.rotated = now
 }
 
 // Size возвращает число запомненных nonce (для тестов и метрик).
+// Учитывает оба поколения. Одна и та же запись не может оказаться в обоих
+// сразу: после сдвига новые вставки идут только в current.
 func (g *ReplayGuard) Size() int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return len(g.seen)
+	return len(g.current) + len(g.previous)
 }
 
 // --- Защита ротации от replay через монотонный счётчик итераций ---

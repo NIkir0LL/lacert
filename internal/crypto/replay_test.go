@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"encoding/binary"
 	"testing"
 	"time"
 )
@@ -115,12 +116,70 @@ func TestReplayGuardEvictsExpiredEntries(t *testing.T) {
 		t.Fatal("expected some remembered nonces")
 	}
 
-	// Сдвигаем время и добавляем ещё один — очистка должна убрать старые.
-	current = current.Add(100 * time.Millisecond)
-	m, _ := NewHandshakeMsg1("device-001", nil)
-	_ = guard.CheckAndRemember(m.DeviceID, m.Nonce)
-
-	if guard.Size() != 1 {
-		t.Fatalf("expected only the fresh nonce to remain after eviction, got size=%d", guard.Size())
+	// Сдвигаем время далеко вперёд и добавляем ещё один nonce. Записи
+	// освобождаются сменой поколений, а не поэлементно, поэтому проверяем не
+	// мгновенное исчезновение, а то, что память не растёт бесконечно: после
+	// двух сдвигов (каждый раз в TTL/2) прежние записи отброшены целиком.
+	for i := 0; i < 3; i++ {
+		current = current.Add(100 * time.Millisecond)
+		m, _ := NewHandshakeMsg1("device-001", nil)
+		_ = guard.CheckAndRemember(m.DeviceID, m.Nonce)
 	}
+
+	if guard.Size() > 2 {
+		t.Fatalf("после смены поколений должны остаться только свежие записи, получено size=%d", guard.Size())
+	}
+}
+
+// Просроченная запись не должна считаться повтором, даже если она ещё занимает
+// место в предыдущем поколении: срок жизни проверяется явно.
+func TestReplayGuardExpiredEntryIsNotReplay(t *testing.T) {
+	guard := NewReplayGuard(50 * time.Millisecond)
+	current := time.Now()
+	guard.now = func() time.Time { return current }
+
+	m, _ := NewHandshakeMsg1("device-001", nil)
+	if err := guard.CheckAndRemember(m.DeviceID, m.Nonce); err != nil {
+		t.Fatalf("первое появление nonce должно приниматься: %v", err)
+	}
+
+	// Ждём дольше TTL, но меньше, чем нужно для двух смен поколений, — запись
+	// ещё лежит в памяти, однако уже просрочена.
+	current = current.Add(60 * time.Millisecond)
+	if err := guard.CheckAndRemember(m.DeviceID, m.Nonce); err != nil {
+		t.Fatalf("просроченный nonce не должен считаться повтором: %v", err)
+	}
+}
+
+// Стоимость вставки не должна расти с наполнением: прежняя реализация обходила
+// всю карту при каждом вызове, и цена вставки увеличивалась в разы. Тест
+// сравнивает время первых вставок со временем вставок в уже наполненную
+// защиту.
+func TestReplayGuardInsertionCostDoesNotGrow(t *testing.T) {
+	if testing.Short() {
+		t.Skip("замер времени, пропускается в коротком режиме")
+	}
+	guard := NewReplayGuard(time.Hour) // без смены поколений за время теста
+
+	measure := func(n int, tag string) time.Duration {
+		var nonce [32]byte
+		start := time.Now()
+		for i := 0; i < n; i++ {
+			binary.BigEndian.PutUint64(nonce[:8], uint64(i))
+			_ = guard.CheckAndRemember(tag, nonce)
+		}
+		return time.Since(start)
+	}
+
+	const batch = 20000
+	first := measure(batch, "warm-up")
+	last := measure(batch, "loaded")
+
+	// Порог с большим запасом: важно поймать рост в разы, а не колебания
+	// в пределах шума планировщика.
+	if last > first*5 {
+		t.Errorf("стоимость вставки выросла слишком сильно: первые %d заняли %v, следующие — %v",
+			batch, first, last)
+	}
+	t.Logf("первые %d вставок: %v, следующие %d (карта наполнена): %v", batch, first, batch, last)
 }
