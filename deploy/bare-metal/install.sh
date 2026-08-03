@@ -30,6 +30,7 @@ fi
 if [[ -f "$ENV_FILE" ]]; then
   PG_PASSWORD="$(grep -oP '(?<=password=)[^ ]+' "$ENV_FILE" | head -1)"
   ADMIN_TOKEN="$(grep -oP '(?<=^LACERT_ADMIN_TOKEN=).+' "$ENV_FILE" | head -1)"
+  MQTT_PASSWORD="$(grep -oP '(?<=^LACERT_MQTT_PASSWORD=).+' "$ENV_FILE" | head -1)"
   ENV_FILE_EXISTS=1
   # Установки до версии 1.1.0 записывали в env-файл LACERT_CORS_ORIGINS=*, то
   # есть разрешали обращаться к REST API любому сайту. Сам файл мы не правим —
@@ -38,11 +39,20 @@ if [[ -f "$ENV_FILE" ]]; then
   if grep -qE '^LACERT_CORS_ORIGINS=\*[[:space:]]*$' "$ENV_FILE"; then
     CORS_WILDCARD=1
   fi
+  # До версии 1.2.0 брокер MQTT пускал любого, поэтому учётных данных в файле
+  # настроек не было. Теперь без них он не запускается — предупредим об этом,
+  # но сам файл не трогаем: это конфигурация оператора.
+  MQTT_CREDS_MISSING=0
+  if ! grep -qE '^LACERT_MQTT_USER=.+' "$ENV_FILE" || ! grep -qE '^LACERT_MQTT_PASSWORD=.+' "$ENV_FILE"; then
+    MQTT_CREDS_MISSING=1
+  fi
 else
   PG_PASSWORD="$(openssl rand -hex 16 2>/dev/null || head -c16 /dev/urandom | xxd -p)"
   ADMIN_TOKEN="$(openssl rand -hex 32 2>/dev/null || head -c32 /dev/urandom | xxd -p)"
+  MQTT_PASSWORD="$(openssl rand -hex 24 2>/dev/null || head -c24 /dev/urandom | xxd -p)"
   ENV_FILE_EXISTS=0
   CORS_WILDCARD=0
+  MQTT_CREDS_MISSING=0
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -117,6 +127,16 @@ LACERT_TCP_ADDR=:7700
 LACERT_HTTP_ADDR=:8080
 LACERT_MQTT_ADDR=:1883
 LACERT_ADMIN_TOKEN=${ADMIN_TOKEN}
+# Учётные данные для подписчиков MQTT. Без них брокер не поднимается: через
+# него идёт УЖЕ РАСШИФРОВАННАЯ телеметрия, и открытым его оставлять нельзя.
+# Пароль сгенерирован при установке, имя можно поменять на своё.
+LACERT_MQTT_USER=lacert-subscriber
+LACERT_MQTT_PASSWORD=${MQTT_PASSWORD}
+# Канал до подписчиков по умолчанию не шифруется. Если брокер доступен не
+# только с этой машины, укажите сертификат и ключ — иначе телеметрия идёт
+# по сети открытым текстом.
+# LACERT_MQTT_TLS_CERT=/etc/lacert/mqtt.crt
+# LACERT_MQTT_TLS_KEY=/etc/lacert/mqtt.key
 # Кросс-доменные запросы по умолчанию не разрешены, и это нормально: дашборд
 # отдаётся тем же процессом на порту 8080, то есть с того же origin, и в
 # CORS-разрешениях не нуждается. Раскомментируйте и перечислите адреса только
@@ -218,6 +238,17 @@ echo "  cat $ENV_FILE                              # пароль БД и admin-
 echo "  systemctl restart lacert-gatewayd         # перезапуск"
 echo "  systemctl stop lacert-gatewayd            # остановка"
 echo
+if [[ "${MQTT_CREDS_MISSING:-0}" == "1" ]]; then
+  echo
+  echo "ВНИМАНИЕ: в $ENV_FILE нет учётных данных MQTT, поэтому брокер запущен"
+  echo "не будет. Прежде он принимал любого клиента, а через него идёт уже"
+  echo "расшифрованная телеметрия — теперь это требует имени и пароля."
+  echo "Чтобы включить брокер обратно, добавьте в файл настроек:"
+  echo "  LACERT_MQTT_USER=lacert-subscriber"
+  echo "  LACERT_MQTT_PASSWORD=$(openssl rand -hex 24 2>/dev/null || echo СГЕНЕРИРУЙТЕ_ПАРОЛЬ)"
+  echo "и перезапустите сервис: systemctl restart lacert-gatewayd"
+  echo "Если MQTT не используется, ничего делать не нужно — шлюз работает без него."
+fi
 if [[ "${CORS_WILDCARD:-0}" == "1" ]]; then
   echo
   echo "ВНИМАНИЕ: в $ENV_FILE осталась строка LACERT_CORS_ORIGINS=* от прежней"

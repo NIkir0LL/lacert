@@ -4,7 +4,7 @@
 
 Methodology for measuring LACERT cryptographic operations on real ESP32 devices
 and for checking the effect of the ECDSA-context optimization. A full build for
-esp32c6 has been verified from a clean clone of the repository; on-board numbers
+esp32c6 has been verified from a clean clone of the repository. On-board numbers
 are collected with the steps below.
 
 ## Verified before on-board measurements
@@ -37,7 +37,7 @@ At the top of `main/lacert_crypto.c`:
 ```
 
 - **1** — the random number generator and the P-256 curve parameters are created
-  once and reused (optimization);
+  once and reused (optimization)
 - **0** — original behavior: the context is recreated for every signature.
 
 Both branches live in the same firmware and are toggled by a single digit, so
@@ -124,7 +124,7 @@ They let you assess the effect of the optimization on each board.
 ## Important reminders
 
 **A unique `LACERT_DEVICE_ID` per board.** The gateway keeps one key set per
-identifier; a second board with the same name will fail the handshake.
+identifier. A second board with the same name will fail the handshake.
 
 **Reflashing changes the image SHA-256.** The gateway holds the reference hash
 from enrollment, so after reflashing the integrity check fails and the device is

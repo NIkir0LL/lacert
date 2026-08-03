@@ -11,7 +11,7 @@ The wire format follows `PROTOCOL_SPEC.md` byte for byte.
 
 ## Status: READY TO FLASH
 
-Every part is implemented; no stubs remain:
+Every part is implemented. No stubs remain:
 
 | File | What it does | Status |
 |------|--------------|--------|
@@ -28,7 +28,7 @@ The ESP32 crypto module (`lacert_crypto.c` plus both components) was compiled on
 the host against the real mbedTLS 3.6 headers — the same version ESP-IDF ships —
 and exercised against a **live Go gateway**. The result: enrollment, handshake,
 telemetry, **3 key rotations** and **5 firmware integrity checks** were all
-accepted by the gateway. So the cryptography and the protocol are compatible;
+accepted by the gateway. So the cryptography and the protocol are compatible
 what remains on the board is the surrounding plumbing (Wi-Fi/NVS), which is also
 written.
 
@@ -53,7 +53,7 @@ Fill these in at the top of `main/main.c`:
                                    // 2 = addressable RGB WS2812 (ESP32-S3-DevKitC-1)
 ```
 
-**About the LED.** The XIAO has a plain single-color LED (mode 1); the
+**About the LED.** The XIAO has a plain single-color LED (mode 1). The
 ESP32-S3-DevKitC-1 has an addressable RGB WS2812 (mode 2), which is driven by a
 pulse protocol and will not light up from a plain `gpio_set_level`. Set the mode
 that matches your board. The pins (`LACERT_LED_GPIO` for the XIAO,
@@ -225,10 +225,10 @@ monitor: `Ctrl+T`, then `Ctrl+F`.
 
 The firmware does not fit the stock 1 MB application partition: ML-KEM + BLAKE3 +
 mbedTLS + Wi-Fi come to roughly 1.0–1.1 MB. The project therefore carries its own
-table (`partitions.csv`) with a **2 MB** application partition; it is wired in
+table (`partitions.csv`) with a **2 MB** application partition. It is wired in
 through `sdkconfig.defaults` and applied automatically.
 
-Board flash sizes: XIAO ESP32-C6 — 4 MB; XIAO ESP32-S3 and ESP32-S3-DevKitC-1 —
+Board flash sizes: XIAO ESP32-C6 has 4 MB, XIAO ESP32-S3 and ESP32-S3-DevKitC-1 —
 8 MB. The `CONFIG_ESPTOOLPY_FLASHSIZE_4MB` setting suits all of them (on the
 8 MB boards the remainder simply goes unused).
 

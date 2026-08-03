@@ -4,7 +4,7 @@
 
 The LACERT protocol client written in C for ESP-IDF. A single project builds for
 three boards: XIAO ESP32-C6 (RISC-V), XIAO ESP32-S3 and ESP32-S3-DevKitC-1
-(Xtensa). Step-by-step building and flashing is covered in `FIRMWARE_BUILD.md`;
+(Xtensa). Step-by-step building and flashing is covered in `FIRMWARE_BUILD.md`
 this document describes how the code is organised.
 
 ## Files
@@ -30,10 +30,10 @@ ESP32 versus OpenSSL on Linux) and the entry point differ.
 ESP32:
 
 - **SHA-256, ECDSA P-256, ChaCha20-Poly1305** — mbedTLS (bundled with ESP-IDF,
-  partly hardware-accelerated on the S3/C6);
+  partly hardware-accelerated on the S3/C6)
 - **ML-KEM-1024** — the `components/ml_kem` component (PQClean), with the
-  ESP32 hardware RNG (`esp_random`) as the randomness source;
-- **BLAKE3** — the `components/blake3` component (portable implementation; the
+  ESP32 hardware RNG (`esp_random`) as the randomness source
+- **BLAKE3** — the `components/blake3` component (portable implementation. The
   SIMD versions are x86-only, so Xtensa/RISC-V use the baseline one).
 
 Every function returns `lacert_err_t` and checks the libraries' return codes.
@@ -99,7 +99,7 @@ record on the gateway (see `GATEWAY.md`).
 responses to firmware challenges. If you reflash modified firmware without
 clearing the record on the gateway, its hash changes and integrity checks start
 failing — which is the correct behavior (protection against tampering), but it
-gets in the way during active development; raising `LACERT_FIRMWARE_INTERVAL`
+gets in the way during active development. Raising `LACERT_FIRMWARE_INTERVAL`
 on the gateway helps temporarily.
 
 ## LED indication
@@ -109,8 +109,8 @@ The mode is chosen by the `LACERT_LED_MODE` macro at the top of `main.c`:
 - **1** — a plain single-color LED (XIAO). Pin `LACERT_LED_GPIO`
   (S3 = 21, C6 = 15), active-low (`LACERT_LED_ACTIVE_LOW = 1`).
 - **2** — an addressable RGB WS2812 (DevKitC-1) driven over RMT. Pin
-  `LACERT_RGB_GPIO` (48 by default; 38 on early board revisions). Brightness is
-  `LACERT_RGB_BRIGHTNESS` (0–255, default 24; above 40 it is usually blinding).
+  `LACERT_RGB_GPIO` (48 by default, 38 on early board revisions). Brightness is
+  `LACERT_RGB_BRIGHTNESS` (0–255, default 24. Above 40 it is usually blinding).
   The WS2812 is driven by a pulse protocol, so a plain `gpio_set_level` will not
   light it — hence the separate RMT backend.
 
@@ -122,7 +122,7 @@ Events: handshake — 3 flashes (green on RGB), transmission — 1 (blue), rotat
 ML-KEM-1024 needs a noticeable amount of stack (a 3,168-byte private key plus
 working buffers), so `sdkconfig.defaults` raises the main task's stack to 24 KB.
 On real boards around 240–250 KB of free heap remains, which is a comfortable
-margin. The ESP32-C6 has less memory than the S3; if it runs short, PSRAM can be
+margin. The ESP32-C6 has less memory than the S3. If it runs short, PSRAM can be
 enabled on the S3-N8R2.
 
 ## Bench settings
@@ -164,7 +164,7 @@ The device does not give up if the gateway is down or restarting:
 - **Gateway forgot the device** — it was running without PostgreSQL and
   restarted, or the record was deleted from the database. The handshake then
   fails even though HTTP responds. After three consecutive failures the board
-  tries to **enroll again**; enrollment is idempotent, so if the device really is
+  tries to **enroll again**. Enrollment is idempotent, so if the device really is
   known the gateway simply answers 400/409 and nothing breaks.
 
 Verified live: the gateway was killed mid-session and brought back up with new
@@ -177,7 +177,7 @@ The figures reported in the original work were taken on an x86-64 server, and
 that was the main limitation: it was unknown how the operations behave on a
 microcontroller. The firmware can measure them **on the board directly** — this
 is controlled by the `LACERT_MEASURE` macro at the top of `main.c` (enabled by
-default; `0` turns it off).
+default, `0` turns it off).
 
 What is measured:
 
@@ -234,7 +234,7 @@ response ≈0.5 ms.
 Note that `handshake_us` and similar values include network delays — on the
 board, three exchanges over Wi-Fi, adding tens of milliseconds of noise — so
 **comparing platforms by them is not valid**. For architectural comparison there
-is a separate microbenchmark without networking; see the next section.
+is a separate microbenchmark without networking, see the next section.
 
 ## Cryptographic microbenchmark
 
@@ -286,7 +286,7 @@ the memory cost of the optimization, is in `MEASUREMENTS.md`, section 3.4.
 **Main conclusion.** ECDSA runs **7.7× faster** on the ESP32-C6 than on the
 ESP32-S3, even though the C6 is the weaker chip (160 MHz against 240, one core
 against two). On every other operation the boards are on par (ML-KEM 17.8 against
-21.1 ms; on BLAKE3 and ChaCha20 the C6 is even slower). The difference therefore
+21.1 ms. On BLAKE3 and ChaCha20 the C6 is even slower). The difference therefore
 lies not in core performance but in the **hardware elliptic-curve accelerator**,
 which the C6 has and the S3 does not. For cryptography on a microcontroller, a
 dedicated accelerator matters more than clock speed.

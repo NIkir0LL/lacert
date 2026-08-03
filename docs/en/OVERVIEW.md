@@ -9,7 +9,7 @@ LACERT (Lightweight Autonomous Continuous Encryption with Refreshment Tokens)
 is a fully local — cloud-free — system for connecting IoT devices to a corporate
 network with post-quantum cryptography. It has two parts:
 
-- **the gateway** — a network service written in Go (`cmd/gatewayd`);
+- **the gateway** — a network service written in Go (`cmd/gatewayd`)
 - **the firmware** — a protocol client written in C for the ESP32 (`firmware/`).
 
 Both implement the same protocol and have been verified working against each
@@ -27,11 +27,15 @@ ESP32-S3-DevKitC-1 (Xtensa).
 | `GATEWAY.md` | gateway architecture and API |
 | `CONFIG.md` | **full reference of `.env` variables** |
 | `MEASUREMENTS.md` | **measurement methodology and results** (how every figure was obtained and how to reproduce it) |
+| `ECC_ACCELERATOR.md` | verified by measurement: what creates the signing-speed gap between the C6 and the S3 |
 | `FIRMWARE.md` | how the ESP32 firmware is built internally |
 | `TUNING.md` | timing parameters via environment variables |
 | `FIRMWARE_BUILD.md` | step-by-step build and flashing |
 | `LINUX_DEBUG.md` | debugging the protocol on Linux without hardware |
 | `QUICKSTART.md` | getting the gateway running quickly |
+| `ROBUSTNESS.md` | robustness: weak points found and how they were closed |
+| `DEPLOY.md` | server deployment |
+| `BOARD_MEASUREMENTS.md` | how on-board measurements are taken |
 | `HISTORY.md` | development journal: what was built at each stage and why |
 
 ---
@@ -50,7 +54,7 @@ ESP32-S3-DevKitC-1 (Xtensa).
 4. **Continuous key rotation.** Roughly every 5 minutes (configurable) the
    session key is refreshed with a fresh ML-KEM secret mixed in. This provides
    forward secrecy (PFS) and post-compromise security (PCS).
-5. **Firmware integrity checks.** The gateway periodically sends a challenge;
+5. **Firmware integrity checks.** The gateway periodically sends a challenge
    the device signs `challenge || SHA-256(firmware image)`, which lets the
    gateway confirm that the device is still running the firmware it enrolled
    with.
@@ -103,11 +107,14 @@ active man-in-the-middle is possible, that is not enough.
 
 **Control frames carry no signature.** The key-rotation and error frames
 (types 8, 9 and 10) are protected only by travelling over an already encrypted
-channel; they have no signature or MAC of their own.
+channel. They have no signature or MAC of their own.
 
-**The embedded MQTT broker runs in plaintext** and accepts any client. It is
-meant for the test bench and for demonstrations, not for carrying data outside a
-trusted segment.
+**The embedded MQTT broker carries decrypted telemetry.** Connecting to it
+requires a username and password, a subscriber may only read device topics, and
+the channel is wrapped in TLS when a certificate and key are configured. Without
+credentials the broker does not start. Channel encryption is off by default
+though, and turning it on is a deliberate step — otherwise the data leaves the
+machine in the clear.
 
 **Debug mode exposes session keys.** The `LACERT_LOG_SESSION_KEYS` variable makes
 the gateway write session keys to its log. That exists for examining handshakes

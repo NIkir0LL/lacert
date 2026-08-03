@@ -3,7 +3,7 @@
 # Measurement methodology and results
 
 This section describes how every numerical value quoted in the project was
-obtained. All measurements were carried out on our own test bench; not a single
+obtained. All measurements were carried out on our own test bench. Not a single
 figure is taken from the literature or from vendor documentation. The
 description given here is sufficient to reproduce any of the measurements.
 
@@ -53,7 +53,7 @@ CONFIG_MBEDTLS_HARDWARE_ECC=y           # ESP32-C6 only: the ECC accelerator
 such a build cryptographic operations run several times slower than in real
 firmware, and the resulting figures would characterize the debug mode rather
 than the algorithm. Every measurement reported here was taken from an optimized
-build; both boards were built with identical settings, so the architectural
+build. Both boards were built with identical settings, so the architectural
 comparison is valid.
 
 ---
@@ -78,8 +78,8 @@ The operations are split into two groups, because their costs differ by four
 orders of magnitude:
 
 **Heavy operations** (ECDSA, ML-KEM — from single-digit to hundreds of
-milliseconds). Each iteration is timed separately; the results are summed and
-divided by the number of iterations (20; 5 for key-pair generation). A
+milliseconds). Each iteration is timed separately. The results are summed and
+divided by the number of iterations (20, or 5 for key-pair generation). A
 `vTaskDelay(1)` is executed between iterations: without it the task holds the
 CPU core longer than the watchdog timeout (a single ECDSA signature on the
 ESP32-S3 takes about 170 ms, so twenty in a row means 3.5 s) and the device
@@ -169,7 +169,7 @@ this compares **algorithms against one another** on a single machine.
 **Bench and methodology.** AMD Ryzen 7 5700X, Windows, Go 1.22, the standard
 benchmark mechanism (`go test -bench`). The fast operations were measured by
 time (`-benchtime=2s`, on the order of 10⁵ iterations) and repeated three times
-(`-count=3`); the spread between repeats did not exceed 1.5 %. SLH-DSA was
+(`-count=3`). The spread between repeats did not exceed 1.5 %. SLH-DSA was
 measured by iteration count (`-benchtime=10x`), since a single signature takes
 about a quarter of a second.
 
@@ -207,7 +207,7 @@ allocator by a factor of 67 (one against sixty-seven). Ed25519 key-pair
 generation, conversely, is 44 % slower, which is of no practical consequence: it
 happens once in the lifetime of a device.
 
-On a server platform the memory advantage is immaterial; on a microcontroller
+On a server platform the memory advantage is immaterial. On a microcontroller
 with a constrained heap, however, it determines how predictable the behavior
 is — less fragmentation and less risk of an allocation failure.
 
@@ -283,7 +283,7 @@ depends on how fast cryptography runs on the chip.** In absolute terms preparing
 the context costs 1.4–3.5 ms on both boards, which is natural: that work does
 not depend on the speed of the computation that follows. On the ESP32-C6, where
 signing takes 22 ms thanks to the hardware accelerator, those milliseconds are a
-noticeable share; on the ESP32-S3, with its 170 ms, they disappear into the
+noticeable share. On the ESP32-S3, with its 170 ms, they disappear into the
 total.
 
 The 1.3 % difference on the ESP32-S3 is comparable to the measurement error:
@@ -425,34 +425,71 @@ of the handshake is negligible against it.
 The result is robust: the advantage of ML-KEM holds even where the hardware
 favors its competitor.
 
-**Observation 8. The ESP32-C6 accelerator speeds up ECDSA operations but not the
-ECDHE key exchange.** Decomposing the handshake across the two measured modes
-separates the contributions:
+**Observation 8 — REFUTED by a later direct measurement.** The original reasoning
+is kept below along with an account of where it went wrong: the mistake here is
+more instructive than the result was.
+
+The original inference, from decomposing the handshake across two modes, was that
+the accelerator speeds up ECDSA but not the key exchange:
+
+| Component | ESP32-S3 | ESP32-C6 | "Speed-up" |
+|-----------|----------|----------|------------|
+| Standalone ECDSA signature | 170.2 ms | 22.1 ms | 7.7 × |
+| ECDSA part of the handshake (difference of modes) | 1,024.2 ms | 143.2 ms | 7.2 × |
+| ECDHE exchange (subtracted from handshake time) | 530.8 ms | 505.9 ms | 1.05 × |
+
+From which it was explained that ESP-IDF supposedly provides hardware ECDSA
+signing but not the general elliptic-curve point multiplication that key exchange
+relies on.
+
+**Measuring the operation directly showed the opposite:**
 
 | Component | ESP32-S3 | ESP32-C6 | Speed-up |
 |-----------|----------|----------|----------|
-| Standalone ECDSA signature | 170.2 ms | 22.1 ms | 7.7 × |
-| ECDSA part of the handshake (difference of modes) | 1,024.2 ms | 143.2 ms | 7.2 × |
-| ECDHE exchange | 530.8 ms | 505.9 ms | **1.05 ×** |
+| ECDH P-256, point multiplication | 154.41 ms | 8.60 ms | **18.0 ×** |
 
-The speed-up of the ECDSA part within the handshake (7.2) almost exactly matches
-that of the standalone signature (7.7), while ECDHE is not accelerated at all.
-This is consistent with how the accelerator is built: ESP-IDF provides hardware
-implementations of ECDSA signing and verification, but not of general
-elliptic-curve point multiplication, which is what ECDHE uses.
+What is more, disabling the accelerator on the C6 itself slows the same operation
+by 16.8x — so the hardware block serves point multiplication even better than it
+serves signing (7.2x), rather than ignoring it.
+
+**Where the error was.** The 505.9 ms figure was not measured but subtracted: an
+estimated share of the signature was taken out of a DTLS-ECDHE-PSK handshake time
+and the remainder attributed to key exchange. The assumption that everything else
+in that remainder was negligible did not hold — something else dominated the
+handshake, and an eighteenfold difference in key exchange simply vanished inside
+it.
+
+The explanation about how the accelerator is built falls with it: hardware point
+multiplication for NIST curves does exist, and key exchange uses it. What does not
+use it is X25519 — the block works with NIST curves, not Curve25519 (121.37 ms
+against 119.33 with the accelerator on and off, i.e. no difference at all).
+
+A full account with the methodology is in [`ECC_ACCELERATOR.md`](ECC_ACCELERATOR.md).
+
+**The methodological lesson.** A value obtained by subtracting from a composite
+timing is not a measurement. Before building an explanation of how a chip works
+on such a value, it has to be confirmed by measuring the operation itself.
 
 The practical consequence for design: **the cost of ML-KEM is predictable and
 depends little on the chip** (39.6 against 33.8 ms — a factor of 1.17), whereas
 the cost of ECDSA varies by a factor of 7.7 depending on the presence of an
 accelerator. A timing budget computed for an ML-KEM-based scheme transfers
-between platforms; one for a classical elliptic-curve scheme does not.
+between platforms. One for a classical elliptic-curve scheme does not.
 
-**Limitation of these measurements.** The full LACERT handshake could not be
-compared against DTLS on the boards: that would require the cost of signature
-verification on the chip itself, which the microbenchmark does not measure — in
-the protocol the gateway verifies signatures, not the device. The comparison on
-hardware is limited to the key exchange; the protocols as a whole were compared
-only on x86 (the table above).
+**A limitation of these measurements, since partly lifted.** Originally the full
+LACERT handshake could not be compared against DTLS on the boards: the cost of
+signature verification on the chip itself was missing, since in the protocol the
+gateway verifies signatures rather than the device, and the firmware's
+microbenchmark had no such operation.
+
+The benchmark firmware in `bench/` measures it: ECDSA P-256 verification takes
+41.58 ms on the ESP32-C6 and 330.93 ms on the ESP32-S3. Notably, verification
+costs more than signing (21.90 ms on the C6) — it needs two point multiplications
+instead of one.
+
+A full protocol-level comparison on the boards has not yet been built on these
+figures: it would also need the cost of frame parsing and assembly, which the
+microbenchmark does not isolate. But the main missing term is no longer missing.
 
 #### What the comparison does not cover
 
@@ -460,8 +497,8 @@ The figures above compare only session establishment and encryption. Beyond them
 lie mechanisms that DTLS does not have at all:
 
 - **continuous key rotation** — DTLS 1.2 provides no way to change the key
-  within a session; doing so requires a fresh handshake with its full cost;
-- **firmware integrity checking** — absent from DTLS as a concept;
+  within a session. Doing so requires a fresh handshake with its full cost
+- **firmware integrity checking** — absent from DTLS as a concept
 - **revoking an individual device** without affecting the others — impossible in
   principle in PSK mode.
 
@@ -472,7 +509,7 @@ handshake.
 
 #### Reproduction
 
-The sources of both benches are `dtls_bench.c` and `lacert_hs_bench.c`; the
+The sources of both benches are `dtls_bench.c` and `lacert_hs_bench.c`. The
 build commands are in the file comments. Certificates for the ECDHE-ECDSA mode
 are created beforehand:
 
@@ -517,7 +554,7 @@ records.
 | 250 | 7.7 % | 57 MB | 12 ms | 0 |
 | 500 | 12.4 % | 93 MB | 26 ms | 0 |
 
-In every trial all devices established a secure connection successfully; key
+In every trial all devices established a secure connection successfully. Key
 rotations and firmware integrity checks completed without a single failure.
 
 Resource consumption grows linearly: approximately 0.025 % of a CPU core and
@@ -581,9 +618,119 @@ curl -s -H "Authorization: Bearer TOKEN" http://localhost:8080/api/v1/metrics
 
 ## 7. Primary data
 
-The benchmark output is preserved in the serial-port log; the measurement
+The benchmark output is preserved in the serial-port log. The measurement
 records for each board are given in the appendix. Telemetry values covering
 handshake time, rotation time and free memory are additionally stored in the
 database (fields `handshake_us`, `rotation_us`, `fw_sign_us`, `heap_free`,
 `heap_min`) and are available through `GET /api/v1/telemetry`, which makes it
 possible to verify the reported figures independently.
+
+## On-chip algorithm comparison (the `bench/` firmware)
+
+Measured with the separate firmware in `bench/`, twenty iterations per operation,
+built with `-Os`. No network is brought up and no protocol runs — computation
+only, so radio-induced variance is excluded.
+
+### Key exchange: what a security level costs
+
+| Level | Keygen | Encapsulate | Decapsulate | Public key | Ciphertext |
+|-------|--------|-------------|-------------|------------|------------|
+| ML-KEM-512 | 6.48 ms | 6.69 ms | 7.51 ms | 800 B | 768 B |
+| ML-KEM-768 | 10.04 ms | 10.68 ms | 11.94 ms | 1184 B | 1088 B |
+| **ML-KEM-1024** | **15.11 ms** | **15.97 ms** | **17.70 ms** | **1568 B** | **1568 B** |
+
+Figures for the ESP32-C6. Moving from the lowest level to the highest costs about
+2.3x the time and twice the traffic. The protocol uses 1024: against the total
+handshake duration a difference of ten milliseconds is not decisive, and the
+larger security margin is preferable for devices that stay in the field ten to
+fifteen years.
+
+### Signatures: post-quantum schemes
+
+| Scheme | Keygen | Sign | Verify | Signature | Public key |
+|--------|--------|------|--------|-----------|------------|
+| ML-DSA-44 | 17.46 ms | 71.89 ms | 17.95 ms | 2420 B | 1312 B |
+| ML-DSA-65 | 30.07 ms | 111.48 ms | 30.07 ms | 3309 B | 1952 B |
+| ML-DSA-87 | 50.46 ms | 122.51 ms | 51.10 ms | 4627 B | 2592 B |
+| SLH-DSA-128s | 13,295 ms | **101,057 ms** | 99.2 ms | 7856 B | 32 B |
+| ECDSA P-256 *(for reference)* | 8.85 ms | 21.90 ms | 41.58 ms | ~71 B | 65 B |
+
+Figures for the ESP32-C6 with its ECC accelerator enabled.
+
+This closes a gap noted in the work: ML-DSA had never been measured on the chip.
+The verdict is that ML-DSA is usable. Signing takes between 72 and 123
+milliseconds, comparable to ECDSA without hardware assistance (158 ms) and
+acceptable for a device reporting every few seconds.
+
+SLH-DSA is not merely slow by comparison but unusable: **one signature takes 101
+seconds** on the ESP32-C6 and 114 seconds on the ESP32-S3. Key generation takes
+thirteen and fifteen seconds respectively. A device signing a single message
+would spend nearly two minutes computing.
+
+How far that is from everything else:
+
+| Against | Times slower |
+|---------|--------------|
+| ECDSA P-256 with the accelerator (21.90 ms) | 4614 |
+| ML-DSA-44 (71.89 ms) | 1406 |
+| ML-DSA-87 (122.51 ms) | 825 |
+
+The earlier estimate in this work — 234.3 ms per signature — was taken on a
+server with a different implementation (Go, the circl library). The 431-fold gap
+against the chip comes from two causes at once: a different processor and a
+different implementation. The figures cannot be set directly against each other,
+but they point to the same conclusion.
+
+Verification, by contrast, is cheap — around 100 ms, comparable to ECDSA without
+the accelerator. Only signing is expensive.
+
+The measurement doubles as another control: with the ECC accelerator on and off,
+the SLH-DSA figures matched to hundredths of a millisecond (101,057.49 and
+101,057.48 ms), confirming that this scheme is independent of the elliptic-curve
+block.
+
+**ML-DSA signing time varies between runs.** ML-DSA-65 gave 100.04 and 133.12 ms
+on two S3 boards, ML-DSA-87 gave 131.52 and 112.41 ms. This is a property of the
+scheme itself: signing works by rejection sampling, and the number of loop
+repetitions differs from signature to signature. For operations without rejection
+(keygen, verify) the spread between board instances is negligible.
+
+### The stack constraint
+
+| Algorithm | Stack used |
+|-----------|------------|
+| ML-DSA-87 | 119.9 KB |
+| ML-DSA-65 | 77.9 KB |
+| ML-DSA-44 | 50.9 KB |
+| ML-KEM (any level) | 20.3 KB |
+| SLH-DSA-128s | 3.8 KB |
+| Classical primitives | 6.0 KB |
+
+For embedded work this often matters more than time. A single ML-DSA-87 call
+needs 120 KB of stack — more than many tasks are given in total. In PQClean's
+reference implementation the expanded structures live on the stack, and the
+usage cannot be reduced without reworking the library.
+
+SLH-DSA is the opposite case: 3.8 KB of stack, thirty times less than ML-DSA-87,
+paid for in time — and the price is prohibitive.
+
+### Classical primitives
+
+| Operation | ESP32-C6 | ESP32-S3 |
+|-----------|----------|----------|
+| ECDSA P-256, sign | 21.90 ms | 167.97 ms |
+| ECDSA P-256, verify | 41.58 ms | 330.93 ms |
+| ECDH P-256, point multiply | 8.60 ms | 154.41 ms |
+| X25519, point multiply | 121.37 ms | 127.77 ms |
+| SHA-256, 1 KB | 49.9 µs | 66.2 µs |
+| BLAKE3, 1 KB | 164.9 µs | 158.4 µs |
+| BLAKE3, key derivation | 17.5 µs | 16.4 µs |
+| ChaCha20-Poly1305, 1 KB | 715.0 µs | 710.0 µs |
+
+The gap in curve operations comes from the hardware ECC accelerator, which the C6
+has and the S3 does not. Verified by direct experiment — see
+[`ECC_ACCELERATOR.md`](ECC_ACCELERATOR.md).
+
+X25519 does not go through the accelerator on either board: the block works with
+NIST curves. Hence a practical point for hybrid schemes — the classical half of
+an X25519 + ML-KEM hybrid costs more on the C6 than the entire post-quantum part.

@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -102,14 +103,48 @@ func main() {
 		}
 	}
 
-	mqttBroker, err := mqttbridge.New(mqttAddr)
-	if err != nil {
-		logger.Error("не удалось создать MQTT-брокер", "err", err)
-		os.Exit(1)
+	// Брокер отдаёт уже расшифрованную телеметрию, поэтому без учётных данных
+	// он не поднимается вовсе. Прежде на его месте работал режим «пускать
+	// всех»: любой, кто дотянулся до порта 1883, читал показания всех
+	// устройств. Отсутствие настроек не мешает работе шлюза — протокол
+	// устройств и REST от брокера не зависят, поэтому запуск продолжается.
+	var mqttBroker *mqttbridge.Broker
+	if u, p := os.Getenv("LACERT_MQTT_USER"), os.Getenv("LACERT_MQTT_PASSWORD"); u != "" && p != "" {
+		var tlsCfg *tls.Config
+		certFile, keyFile := os.Getenv("LACERT_MQTT_TLS_CERT"), os.Getenv("LACERT_MQTT_TLS_KEY")
+		if certFile != "" && keyFile != "" {
+			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				logger.Error("не удалось загрузить сертификат для MQTT", "err", err)
+				os.Exit(1)
+			}
+			tlsCfg = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+		} else {
+			logger.Warn("MQTT работает без TLS — расшифрованная телеметрия идёт по сети открытым текстом. Задайте LACERT_MQTT_TLS_CERT и LACERT_MQTT_TLS_KEY")
+		}
+
+		b, err := mqttbridge.New(mqttbridge.Options{
+			Addr:      mqttAddr,
+			Username:  u,
+			Password:  p,
+			TLSConfig: tlsCfg,
+			Logger:    logger,
+		})
+		if err != nil {
+			logger.Error("не удалось создать MQTT-брокер", "err", err)
+			os.Exit(1)
+		}
+		mqttBroker = b
+		logger.Info("MQTT-брокер запущен", "addr", mqttAddr, "tls", tlsCfg != nil)
+	} else {
+		logger.Warn("MQTT-брокер выключен: не заданы LACERT_MQTT_USER и LACERT_MQTT_PASSWORD. Телеметрия доступна через REST API")
 	}
 
 	tcpSrv := tcpserver.New(gw, logger)
 	tcpSrv.OnData = func(deviceID string, plaintext []byte) {
+		if mqttBroker == nil {
+			return
+		}
 		if err := mqttBroker.PublishTelemetry(deviceID, plaintext); err != nil {
 			logger.Warn("не удалось опубликовать телеметрию в MQTT", "device_id", deviceID, "err", err)
 		}
@@ -219,11 +254,13 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	go func() {
-		if err := mqttBroker.Serve(); err != nil {
-			logger.Error("mqtt broker остановлен с ошибкой", "err", err)
-		}
-	}()
+	if mqttBroker != nil {
+		go func() {
+			if err := mqttBroker.Serve(); err != nil {
+				logger.Error("mqtt broker остановлен с ошибкой", "err", err)
+			}
+		}()
+	}
 	go func() {
 		logger.Info("REST API запущен", "addr", httpAddr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -284,7 +321,9 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	_ = httpServer.Shutdown(shutdownCtx)
-	_ = mqttBroker.Close()
+	if mqttBroker != nil {
+		_ = mqttBroker.Close()
+	}
 	if err := tcpSrv.Shutdown(shutdownCtx); err != nil {
 		logger.Warn("TCP-сервер не успел корректно завершиться в отведённое время", "err", err)
 	}

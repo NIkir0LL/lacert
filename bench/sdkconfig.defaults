@@ -1,0 +1,41 @@
+# --- Общие настройки прошивки замеров ---
+
+# Основной задаче большой стек не нужен: замеры выполняются в отдельных
+# задачах, каждая со своим размером (см. bench_main.c). Так сделано из-за
+# расхода стека у постквантовых подписей — эталонной реализации ML-DSA-87
+# нужен кадр в 121 КБ, и держать такой стек весь прогон было бы расточительно.
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# Сторожевой таймер задач выключен: одна подпись SLH-DSA на кристалле идёт
+# секунды, и отдать управление посреди операции невозможно. Для прошивки,
+# которая только считает и ничего не обслуживает, это безопасно.
+CONFIG_ESP_TASK_WDT_EN=n
+
+# --- Таблица разделов ---
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+# --- Оптимизация ---
+# То же, что в боевой прошивке, и по той же причине: на отладочной сборке (-Og)
+# числа получаются в разы хуже и меряется не алгоритм, а отсутствие оптимизации.
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# --- mbedTLS: примитивы ---
+CONFIG_MBEDTLS_CHACHA20_C=y
+CONFIG_MBEDTLS_POLY1305_C=y
+CONFIG_MBEDTLS_CHACHAPOLY_C=y
+CONFIG_MBEDTLS_ECDSA_C=y
+CONFIG_MBEDTLS_ECDH_C=y
+CONFIG_MBEDTLS_ECP_DP_SECP256R1_ENABLED=y
+# Curve25519 нужна для замера X25519: гибридную схему X25519 + ML-KEM
+# рекомендует BSI TR-02102, и её цену на кристалле стоит знать.
+CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED=y
+
+# --- Аппаратное ускорение ---
+CONFIG_MBEDTLS_HARDWARE_MPI=y
+CONFIG_MBEDTLS_HARDWARE_SHA=y
+CONFIG_MBEDTLS_HARDWARE_AES=y
+CONFIG_MBEDTLS_ECP_NIST_OPTIM=y
+
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y

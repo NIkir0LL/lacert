@@ -1,0 +1,5 @@
+# Скачивается scripts/fetch-components.sh, в репозитории не хранится.
+components/
+build/
+sdkconfig
+sdkconfig.old

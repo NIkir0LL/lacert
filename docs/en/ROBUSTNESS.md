@@ -27,7 +27,7 @@ sides with different keys and broke the link with no way to recover.
 
 **Solution** (`internal/crypto/rotation_atomic.go`):
 - the initiator computes `Ki+1` but keeps encrypting under the current key until
-  an ACK arrives (`BeginRotate` / `CommitRotate` / `AbortRotate`);
+  an ACK arrives (`BeginRotate` / `CommitRotate` / `AbortRotate`)
 - every rotation message carries an iteration number cryptographically bound to
   the new key: `Ki+1 = BLAKE3(Ki || Mi || iteration || "rotate_v1")`. This
   protects rotation against replay and detects desynchronization.
@@ -46,7 +46,7 @@ forever and could never rotate again.
 
 **Solution.** `Session.AbortIfStale(timeout)` rolls the rotation back if no ACK
 arrives within `RotationAckTimeout` (5 s). The scheduler
-(`internal/scheduler`) rolls back a stuck rotation and starts it over; a failed
+(`internal/scheduler`) rolls back a stuck rotation and starts it over. A failed
 attempt is written to the log.
 
 **Tests.** `TestAbortIfStale*` in crypto, `TestSchedulerRollsBackStaleRotation`.
@@ -87,7 +87,7 @@ Available through `GET /api/v1/metrics`.
 in memory.
 
 **Solution.** `Gateway.Shutdown()` closes every session (wiping the keys) and
-clears unfinished state; it is called from `cmd/gatewayd` after the network
+clears unfinished state. It is called from `cmd/gatewayd` after the network
 listeners are closed. In addition, `Session.Close()` now also wipes the "pending"
 key of an unfinished rotation.
 
@@ -97,7 +97,7 @@ key of an unfinished rotation.
 
 ## Testing summary
 
-- All packages build; `go vet` reports nothing.
+- All packages build and `go vet` reports nothing.
 - All unit and integration tests pass.
 - The data-race detector (`go test -race`) is clean across every package.
 - An end-to-end live run of the gateway with emulated devices was carried out:
@@ -123,7 +123,7 @@ run: rotation completes with an ACK and the iteration number increases.
 **Problem.** The client's base logger already carried `device_id` (the emulator
 created it via `.With("device_id", ...)`), while individual log calls added the
 field again — the output read `device_id=X device_id=X`.
-**Fix.** `device_id` is now set once, in `tcpclient.Dial`; the repeated additions
+**Fix.** `device_id` is now set once, in `tcpclient.Dial`. The repeated additions
 were removed. The duplication in the logs is gone.
 
 ### 3. Buffer overflow in the firmware when parsing the ML-KEM ciphertext
@@ -134,7 +134,7 @@ bytes). The length field is 16-bit and the frame is capped only at 64 KiB, so a
 single Msg2 produced two defects at once:
 
 - `build_msg2_bytes` wrote `2 + length + 32` bytes into the stack buffer `m2`,
-  sized `8 + 1568 + 32` = 1608 bytes — a stack overflow of up to ~64 KiB;
+  sized `8 + 1568 + 32` = 1608 bytes — a stack overflow of up to ~64 KiB
 - `lacert_kem_decapsulate` reads exactly 1568 bytes regardless of the declared
   length, so a shorter field made it read past the end of the received buffer.
 
@@ -147,7 +147,7 @@ only by the genuine gateway.
 
 **Fix.** Both places now check `kem_ct_len != LACERT_KEM_CIPHERTEXT_SIZE` and
 return `LACERT_ERR_DECODE`. Confirmed under AddressSanitizer: before the fix,
-writing 60,034 bytes into a 1608-byte buffer was reported as an overflow; after
+writing 60,034 bytes into a 1608-byte buffer was reported as an overflow. After
 it, the frame is rejected with no out-of-bounds access. Absence of regression was
 checked as well: the client completes the handshake, sends telemetry and answers
 the firmware integrity challenge.
@@ -166,10 +166,10 @@ had it from the start).
   (30 min → 2 points, 1 h → 3, no filter → 4) and by a live run.
 - **Race protection for telemetry/rotation requests** (`monRequestSeq`,
   `rotRequestSeq`) is correct — stale responses are discarded.
-- **Tab switching and polling** create no extra load; only the active tab is
+- **Tab switching and polling** create no extra load, since only the active tab is
   refreshed.
 - **`cmd/demo`** deliberately uses non-atomic rotation as a simple illustration
-  of the UML sequence; it is a documented teaching artifact, not a production
+  of the UML sequence. It is a documented teaching artifact, not a production
   path.
 
 ### Metrics surfaced on the web dashboard
@@ -274,9 +274,9 @@ point, as expected.
 flowing under the old key and the device was not revoked. Two causes:
   (a) **a duel of initiators** — both the emulator (the device) and the scheduler
       (the gateway) started rotations on their own timers at nearly the same
-      moment; the opposing rotation could not begin (the session was already in
+      moment. The opposing rotation could not begin (the session was already in
       the pending state), no ACK arrived, and the attempts were rolled back on
-      timeout indefinitely;
+      timeout indefinitely
   (b) **no threshold** — failed rotations had no counter after which the device
       would be revoked.
 **Fix.**
@@ -327,7 +327,7 @@ In addition to the in-process `TestStressAllDefenseMechanisms`, the
 NETWORK to a running `cmd/gatewayd`, enrolls 5 devices through REST and
 reproduces its own failure scenario on each (the same D1–D5). Before and after
 the run it reads the gateway's metrics through `/api/v1/metrics` and shows the
-changes; the same values are visible in real time on the dashboard's "metrics"
+changes. The same values are visible in real time on the dashboard's "metrics"
 tab.
 
 To let the demonstration finish quickly, the scheduler intervals were made
@@ -381,7 +381,7 @@ The remaining defaults are unchanged (`RotationInterval` 300 s,
 
 The `/etc/lacert/gatewayd.env` generated by `install.sh` gained a block listing
 ALL the timing parameters, commented out (`#`), with an explanation and the stock
-value for each. While a line stays commented the default from the code applies;
+value for each. While a line stays commented the default from the code applies
 uncommenting it overrides that. This puts the complete list of configurable
 timeouts in front of the administrator.
 

@@ -42,13 +42,13 @@ program.
 **`cmd/gatewayd`** — the gateway process:
 
 - a TCP server (`:7700`) speaking the LACERT protocol: binary framing
-  (`internal/wire`), handshake, data, rotation, firmware integrity checks;
+  (`internal/wire`), handshake, data, rotation, firmware integrity checks
 - a REST API (`:8080`, built on `chi`) — device enrollment, listing and status,
-  event log, revocation, and issuing the gateway's public key;
+  event log, revocation, and issuing the gateway's public key
 - an embedded MQTT broker (`:1883`, built on `mochi-mqtt`) — decrypted telemetry
-  is published to `devices/{id}/telemetry`, events to `devices/{id}/events`;
+  is published to `devices/{id}/telemetry`, events to `devices/{id}/events`
 - a background scheduler (`internal/scheduler`) — walks active connections and
-  initiates rotations on a timer along with periodic firmware checks;
+  initiates rotations on a timer along with periodic firmware checks
 - storage — PostgreSQL through gorm, falling back to memory automatically if the
   database is unavailable.
 
@@ -95,12 +95,12 @@ TCP keepalive and a read timeout were added — set well above the rotation
 interval so that live but temporarily idle channels are not closed.
 
 **No graceful shutdown.** `Server.Shutdown(ctx)` now closes the listener and all
-active connections and waits for the serving goroutines; it is wired into
+active connections and waits for the serving goroutines. It is wired into
 `cmd/gatewayd` for SIGTERM/SIGINT. Test:
 `TestTCPServerShutdownClosesConnections`.
 
 **REST API without authentication or CORS.** Bearer authentication was added for
-the admin endpoints through `LACERT_ADMIN_TOKEN`; if no token is set,
+the admin endpoints through `LACERT_ADMIN_TOKEN`. If no token is set,
 authentication is disabled with an explicit warning in the log. `/healthz` and
 `/api/v1/gateway` remain open at all times — the latter is needed by a device
 for provisioning before any authentication exists. CORS is configured through
@@ -121,9 +121,9 @@ third-party service would be out of place). It is embedded into the binary via
 starts with a single command, with everything inside: the TCP protocol, REST,
 MQTT, the web page and the scheduler.
 
-The page can: list devices with real-time online status; enroll a device
+The page can: list devices with real-time online status. Enroll a device
 (including pasting a whole line from the serial port in one action — the fields
-are parsed automatically, see `regtool.Parse`); show an event log; revoke a
+are parsed automatically, see `regtool.Parse`). Show an event log. Revoke a
 device.
 
 The styling is deliberately console-like: monospaced type, a dark panel, an
@@ -132,7 +132,7 @@ hexadecimal keys, identifiers, checksums — so the monospaced font is not a
 decorative flourish but literally what the administrator reads from a terminal.
 
 **ESP32 emulation was moved into a reusable package**, `internal/emulator`.
-Previously `cmd/devicesim` was a standalone `main.go`; it is now a thin wrapper
+Previously `cmd/devicesim` was a standalone `main.go`. It is now a thin wrapper
 around `internal/emulator.Run(ctx, cfg)`.
 
 **Emulation can be switched on inside `gatewayd`** with
@@ -141,7 +141,7 @@ connect over the same TCP port a real board would use. Crucially, neither the
 gateway nor the protocol distinguishes an emulated device from a real one: both
 speak the same `internal/wire` protocol through `internal/transport`. Moving to
 trials with real boards therefore amounts to not setting
-`LACERT_EMULATE_DEVICES`; the server side needs no rewriting.
+`LACERT_EMULATE_DEVICES`. The server side needs no rewriting.
 
 Along the way an unrealistic aspect of enrollment was fixed: previously the
 **entire firmware image** was sent to the gateway so it could compute the
@@ -252,7 +252,7 @@ panic. Since the connection handler was not wrapped in `recover()`, such a panic
 killed **the entire gateway process** along with every connected device. One
 corrupted packet on port 7700 was enough. Traffic of exactly this kind — a
 network scanner probing the port with an HTTP request — had already been
-observed in operation. Fixed by converting to `int` before the addition;
+observed in operation. Fixed by converting to `int` before the addition
 `recover()` was added as defense in depth, so a panic now takes down only one
 connection. Covered by tests with pathological input for all seven parsing
 functions and by an end-to-end test that hammers the server with garbage
@@ -302,7 +302,7 @@ itself.
 
 ## Stage 8. Three monitoring-dashboard defects
 
-Found during real use of the interface; all three were reproduced and diagnosed
+Found during real use of the interface. All three were reproduced and diagnosed
 through Playwright before being fixed.
 
 **The page jumped to the top on every auto-refresh.** The cause:
@@ -336,7 +336,7 @@ recalculation produced this effect too: the grid uses
 `grid-template-columns: repeat(auto-fit, minmax(420px, 1fr))`, and when the
 width was read for the very first card in the single-pass code, the others had
 not yet been added to the DOM. The grid saw a single element and stretched it
-across the full width; when the rest were added later the real column width
+across the full width. When the rest were added later the real column width
 shrank, but the `viewBox` had already been computed for the wide one. Resolved
 by the same two-pass build: the width is read only once the grid holds the
 complete set of cards.
@@ -349,8 +349,8 @@ The firmware is implemented, lives in `firmware/` and has been verified on real
 boards.
 
 - **Cryptography on the device:** ML-KEM-1024 — PQClean
-  (`firmware/components/ml_kem`, rather than liboqs as originally assumed);
-  BLAKE3 — a separate component; ECDSA P-256, ChaCha20-Poly1305 and SHA-256 —
+  (`firmware/components/ml_kem`, rather than liboqs as originally assumed)
+  BLAKE3 — a separate component, while ECDSA P-256, ChaCha20-Poly1305 and SHA-256 —
   mbedTLS from the ESP-IDF distribution. Randomness comes from the hardware
   generator (`esp_random`).
 - **Code shared with the debug bench:** `lacert_wire.c` and `lacert_client.c`
@@ -417,11 +417,11 @@ bytes, ciphertext — 1,568 bytes, shared secret — 32 bytes.
 
 ## Directions for further development
 
-Recorded as plans; not being implemented at this stage.
+Recorded as plans. Not being implemented at this stage.
 
 - **Monitoring through Prometheus and Grafana.** Indicators: process health
   (TCP, MQTT, REST), data throughput, CPU and memory load on the gateway and, in
-  time, telemetry from the devices themselves on the same measure; latency to
+  time, telemetry from the devices themselves on the same measure. Latency to
   devices, the frequency of rotations and firmware checks, and the number of
   revoked devices. Technically this is added as a `/metrics` endpoint
   (`prometheus/client_golang`) plus a Grafana dashboard on top of it. There is no

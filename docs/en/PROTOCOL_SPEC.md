@@ -8,7 +8,7 @@ mismatch in even a single byte — field order, endianness, a separator string �
 will cause the handshake or the signature check to fail.
 
 The source of truth is the gateway code in `internal/wire` and
-`internal/crypto`; everything here is derived from it.
+`internal/crypto`. Everything here is derived from it.
 
 ---
 
@@ -17,7 +17,7 @@ The source of truth is the gateway code in `internal/wire` and
 - **Endianness:** all integer lengths and counters are **big-endian (BE)**.
 - **Primitives:**
   - Key exchange: **ML-KEM-1024** (Kyber, NIST final).
-  - Device signature: **ECDSA P-256** (recommended; see the note on SLH-DSA below).
+  - Device signature: **ECDSA P-256** (recommended, see the note on SLH-DSA below).
   - Hashing / key derivation: **BLAKE3** (32-byte output).
   - Data encryption: **ChaCha20-Poly1305**.
   - Firmware hash: **SHA-256**.
@@ -181,7 +181,7 @@ signature = ECDSA_P256_sign( dev_identity_priv, confirm )
 
 where `ECDSA_P256_sign(m)` = `ASN1( SignASN1( SHA-256(m) ) )`, that is:
 1. `digest = SHA-256(confirm)` (32 bytes),
-2. sign `digest` with the ECDSA key; the result is in **ASN.1 DER** form.
+2. sign `digest` with the ECDSA key. The result is in **ASN.1 DER** form.
 
 Msg3 payload:
 
@@ -197,7 +197,7 @@ is valid the session is established, and the current key is K0.
 > **Type 4 (deprecated, unused).** In an early scheme type 4 denoted
 > non-atomic key rotation. It was found insecure (the frame is unauthenticated
 > and does not advance the iteration counter) and removed from the protocol. The
-> gateway still recognizes type 4 on input but **rejects** it; regular devices
+> gateway still recognizes type 4 on input but **rejects** it. Regular devices
 > and the emulator never send such a frame. Current rotation is atomic, types 9
 > and 10 (see section 5). The value 4 is reserved and not reused.
 
@@ -216,6 +216,14 @@ ciphertext = ChaCha20Poly1305_seal(Ki, nonce, plaintext)   // includes the 16-by
   counter `seq_num` (BE). This guarantees nonce uniqueness under a single key.
 - `plaintext` is a telemetry string, for example `temperature=25.3;seq=42`.
 
+**Length limit.** The plaintext of a single data packet must not exceed
+**380 bytes** (`MaxPayloadSize` in `internal/crypto/aead.go`). The gateway
+rejects anything longer, so the device is expected to check the length before
+encrypting — otherwise it wastes time and airtime for nothing. The limit is
+chosen so that the frame, together with its header, nonce and authentication tag,
+fits comfortably within a single segment on the kind of network these devices
+run on.
+
 Payload:
 
 ```
@@ -229,7 +237,7 @@ The maximum plaintext size is bounded — see `MaxPayloadSize` in the code.
 
 ## 5. Key rotation (atomic, initiated by the GATEWAY)
 
-Rotation is initiated **only by the gateway**; the device has no rotation timer
+Rotation is initiated **only by the gateway**. The device has no rotation timer
 of its own and only responds. The device receives `TypeRotationV2`, applies the
 new key and answers with `TypeRotationAck`.
 
@@ -270,7 +278,7 @@ iteration                     // 8 bytes, uint64 BE (the same iteration)
 
 On receiving an ACK with the correct iteration number, the gateway commits the
 new key on its side. If no ACK arrives within `RotationAckTimeout` (5 s by
-default) the gateway rolls the rotation back; after several consecutive failures
+default) the gateway rolls the rotation back. After several consecutive failures
 the device is revoked.
 
 > **Checking the iteration number.** The device must accept only
@@ -354,7 +362,7 @@ The system supports both schemes (`sig_algorithm`: `ecdsa-p256` or `slh-dsa`),
 but for the ESP32 **ECDSA P-256 is strongly recommended**:
 
 - **ECDSA P-256**: signing takes 22.2 ms on the ESP32-C6 and 170.2 ms on the
-  ESP32-S3; signatures are ~70 bytes. The difference between the boards comes
+  ESP32-S3. Signatures are ~70 bytes. The difference between the boards comes
   from the hardware elliptic-curve accelerator: the ESP32-C6 has one and the
   ESP32-S3 does not, so on the S3 the operation runs entirely in software
   (mbedTLS).
@@ -363,7 +371,7 @@ but for the ESP32 **ECDSA P-256 is strongly recommended**:
   is unacceptable in both time and memory.
 
 This is confirmed by measurements (see `MEASUREMENTS.md`). ML-KEM provides
-post-quantum strength at the key-exchange layer; the signature remains classical.
+post-quantum strength at the key-exchange layer. The signature remains classical.
 
 Worth keeping in mind: on the ESP32-S3 the signature turns out to be the most
 expensive operation in the protocol — more expensive than a post-quantum ML-KEM
@@ -377,14 +385,14 @@ ECDSA rests on the discrete-logarithm problem and is broken by a quantum
 adversary. Measurements showed the cost of a post-quantum signature to be
 unacceptable for the ESP32, so a deliberate split was adopted:
 
-- **key exchange — post-quantum** (ML-KEM-1024);
+- **key exchange — post-quantum** (ML-KEM-1024)
 - **signature — classical** (ECDSA P-256).
 
 The practical consequence: an adversary with a quantum computer will not be able
 to recover session keys from intercepted traffic, but will be able to forge a
 device signature. For a scenario where the primary concern is the
 confidentiality of long-lived data ("harvest now, decrypt later"), this split is
-justified; for one where unforgeability of the signature is critical, a scheme
+justified. For one where unforgeability of the signature is critical, a scheme
 of the SLH-DSA class — and correspondingly more capable hardware — is required.
 
 ### The alternative considered: Ed25519
@@ -408,7 +416,7 @@ The replacement was nevertheless rejected:
    have to be pulled in as a separate library.
 3. **On the ESP32-C6 it would make things worse.** That board's hardware
    accelerator speeds up ECDSA operations by roughly 7.7× (`MEASUREMENTS.md`,
-   observation 8); there is no hardware support for Ed25519.
+   observation 8). There is no hardware support for Ed25519.
 
 The Ed25519 implementation is retained in the gateway core (`internal/crypto`)
 as a tool for comparative measurements, but is not used in the firmware or in
@@ -426,5 +434,5 @@ the protocol.
 | ML-KEM-1024 | PQClean — wired in as the `firmware/components/ml_kem` component |
 | BLAKE3 | the official C implementation from BLAKE3-team/BLAKE3 |
 
-Only ML-KEM-1024 and BLAKE3 have to be added from outside; everything else
+Only ML-KEM-1024 and BLAKE3 have to be added from outside. Everything else
 already ships with ESP-IDF.

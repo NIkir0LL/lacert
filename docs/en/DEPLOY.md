@@ -14,7 +14,7 @@ sudo bash deploy/bare-metal/install.sh
 The script is idempotent (safe to re-run) and does the following:
 1. Checks that Go ≥ 1.22 is installed.
 2. Installs PostgreSQL if it is missing (through `apt-get` — for RHEL/CentOS
-   replace this with `dnf`/`yum` by hand before running; nothing else changes).
+   replace this with `dnf`/`yum` by hand before running. Nothing else changes).
 3. Creates the `lacert` role and database in PostgreSQL with a random password.
 4. Builds `gatewayd` and `devicesim` and places them in `/opt/lacert/bin/`.
 5. Creates the system user `lacert` (no shell, no home directory).
@@ -58,23 +58,23 @@ and is never sent anywhere except in the `Authorization` header of requests to
 this same gateway.
 
 What the page offers: a device list with real-time online status and a short
-preview of the latest message; enrollment of a new device (you can paste an
-entire line from the serial port and the fields fill themselves in); a device
-card with the full latest message and an event log; a **"Monitoring" section** —
+preview of the latest message. Enrollment of a new device (you can paste an
+entire line from the serial port and the fields fill themselves in). A device
+card with the full latest message and an event log. A **"Monitoring" section** —
 charts of numeric telemetry fields over time (an overview across all devices or
 a specific device, over 30 min / 1 / 6 / 12 / 24 hours or a custom range) plus a
-history of received packets; a **"Rotation log" section** — every key-change
+history of received packets. A **"Rotation log" section** — every key-change
 attempt, successful or not.
 
 ### The monitoring dashboard and rotation log
 
 - **Monitoring**: with no device selected, an overview (one chart per metric with
-  every device as a separate line); with a device selected, charts for that
+  every device as a separate line). With a device selected, charts for that
   device only, plus a table of received packets over the same period.
 - **Rotation log**: the old and new keys are shown in full only if
   `LACERT_LOG_SESSION_KEYS=true` is enabled on the gateway (the variable is
   commented out by default in `gatewayd.env` — see below). Leave it off in
-  production; the page will show a banner explaining that the values are hidden.
+  production. The page will show a banner explaining that the values are hidden.
 - **Firmware checks**: a summary (how many integrity checks passed and how many
   were rejected) and a table across all devices. The gateway periodically sends
   the device a challenge, and the device answers with a signature over
@@ -128,7 +128,9 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/devices/t
 Check telemetry delivery to MQTT (if `mosquitto-clients` is installed:
 `sudo apt-get install -y mosquitto-clients`):
 ```bash
-mosquitto_sub -h localhost -p 1883 -t 'devices/+/telemetry' -v
+mosquitto_sub -h localhost -p 1883 -t 'devices/+/telemetry' -v \\
+  -u "$(sudo grep -oP '(?<=^LACERT_MQTT_USER=).+' /etc/lacert/gatewayd.env)" \\
+  -P "$(sudo grep -oP '(?<=^LACERT_MQTT_PASSWORD=).+' /etc/lacert/gatewayd.env)"
 ```
 
 ## Connecting real ESP32 boards
@@ -138,11 +140,11 @@ server side — the boards connect to the same ports as the emulators.
 
 What you will need to fill into the firmware (`firmware/main/main.c`):
 
-- **the server's IP** on the local network (`hostname -I | awk '{print $1}'`);
-- **the admin token** (`sudo grep LACERT_ADMIN_TOKEN /etc/lacert/gatewayd.env`);
+- **the server's IP** on the local network (`hostname -I | awk '{print $1}'`)
+- **the admin token** (`sudo grep LACERT_ADMIN_TOKEN /etc/lacert/gatewayd.env`)
 - **a unique `LACERT_DEVICE_ID` for every board** — the gateway keeps one set of
   keys per ID, so a second board with the same ID will not complete the
-  handshake;
+  handshake
 - the Wi-Fi settings (2.4 GHz only — the ESP32 cannot see 5 GHz networks).
 
 After that the board handles everything itself: it generates keys on first
@@ -154,7 +156,7 @@ Check that the ports are reachable from the local network (see the next section)
 and that the gateway listens on all interfaces (`:7700`, not `127.0.0.1:7700`).
 
 Building and flashing, along with a walkthrough of common problems, are covered
-in `FIRMWARE_BUILD.md`; the internals of the firmware are in `FIRMWARE.md`.
+in `FIRMWARE_BUILD.md`. The internals of the firmware are in `FIRMWARE.md`.
 
 ## The complete settings reference
 
@@ -293,7 +295,7 @@ emulation is enabled (`LACERT_EMULATE_DEVICES`): its devices are recreated every
 time the gateway starts and their previous data is deleted. Records of real
 boards are unaffected. See the section on built-in emulation above.
 
-**I want to reset and start over.** The script is safe to re-run; for a complete
+**I want to reset and start over.** The script is safe to re-run. For a complete
 reset (including the database and the token):
 ```bash
 sudo systemctl stop lacert-gatewayd

@@ -35,7 +35,7 @@ go test -race ./...                 # with the data-race detector (slower)
 go test ./... -cover                # with coverage
 ```
 
-Expected result: all 14 packages report `ok`; there should be no `FAIL`.
+Expected result: all 14 packages report `ok`. There should be no `FAIL`.
 
 ## 3. Run the gateway with emulated devices (no ESP32 hardware)
 
@@ -100,7 +100,7 @@ The main mechanisms worth running through:
 1. **Post-quantum handshake** — devices switch to `online` on the dashboard.
 2. **Telemetry** — numeric values move and change on the charts.
 3. **Key rotation** — entries appear in the rotation log
-   (`/api/v1/rotations`); in test mode both the old and the new key are visible.
+   (`/api/v1/rotations`). In test mode both the old and the new key are visible.
 4. **Firmware integrity check** — once an hour (or immediately, on the
    scheduler's first tick) the device answers a challenge.
 5. **Metrics** (`/api/v1/metrics`) — counters for handshakes, rotations,
@@ -109,7 +109,7 @@ The main mechanisms worth running through:
 ## If something goes wrong
 
 When reporting a problem, please include:
-- your Go version (`go version`) and OS;
-- the exact command you ran;
-- the full error output;
+- your Go version (`go version`) and OS
+- the exact command you ran
+- the full error output
 - if a test fails, the test name from the `go test` output.

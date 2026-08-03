@@ -26,6 +26,10 @@ The reasoning behind the timing values and advice on choosing them is in
 | `LACERT_TCP_ADDR` | `:7700` | address of the device TCP protocol |
 | `LACERT_HTTP_ADDR` | `:8080` | address of the REST API and dashboard |
 | `LACERT_MQTT_ADDR` | `:1883` | address of the embedded MQTT broker |
+| `LACERT_MQTT_USER` | unset | username for subscribers. **Without it and a password the broker does not start**: what flows through it is already-decrypted telemetry |
+| `LACERT_MQTT_PASSWORD` | unset | password for subscribers |
+| `LACERT_MQTT_TLS_CERT` | unset | path to the TLS certificate. Without it telemetry crosses the network in the clear |
+| `LACERT_MQTT_TLS_KEY` | unset | path to the TLS private key |
 | `LACERT_CORS_ORIGINS` | unset | allowed external origins for browser requests (e.g. `https://lacert.example.com`). When unset, cross-origin requests are not permitted: the built-in dashboard is served from the same address and does not need them. Setting `*` opens the API to any site — use it deliberately |
 
 For boards on the local network to connect, the address must bind all

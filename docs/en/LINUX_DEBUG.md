@@ -65,10 +65,10 @@ LACERT_ADMIN_TOKEN=41b1751e... ./lacert-client 127.0.0.1 8080 7700
 ```
 
 The client will:
-1. generate ECDSA and ML-KEM keys;
-2. enroll over REST (POST /api/v1/devices);
-3. fetch the gateway's ML-KEM public key;
-4. perform the handshake;
+1. generate ECDSA and ML-KEM keys
+2. enroll over REST (POST /api/v1/devices)
+3. fetch the gateway's ML-KEM public key
+4. perform the handshake
 5. send five telemetry packets.
 
 A successful run ends with a line reporting that the protocol works. The
@@ -82,7 +82,7 @@ decrypted telemetry can be seen on the dashboard or through
   data.
 - `build_linux.sh` — the build script.
 - `esp_random.h` — a host stub for the ESP32 random-number API. It is needed only
-  by `bench_host`, which compiles `../main/lacert_crypto.c` directly; randomness
+  by `bench_host`, which compiles `../main/lacert_crypto.c` directly. Randomness
   comes from `getrandom(2)` or `/dev/urandom`. The firmware uses the real header
   from the ESP-IDF distribution.
 
@@ -126,7 +126,7 @@ gateway.
    handshake — just as a real device does after losing the network.
 
 What remains Linux-specific, and is replaced on the ESP32: crypto on OpenSSL →
-mbedTLS plus components; file-based key storage → NVS/efuse; POSIX sockets →
+mbedTLS plus components. File-based key storage → NVS/efuse, POSIX sockets →
 Wi-Fi with lwIP (the socket API itself is the same).
 
 ### Example: running twice means the same device

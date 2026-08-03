@@ -37,12 +37,12 @@ Packages:
 - **`internal/api`** — REST built on `chi`, Bearer-token authentication.
 - **`internal/webui`** — the dashboard (HTML/CSS/JS, embedded into the binary
   via go:embed).
-- **`internal/store`** — the storage interface; `memstore` (in memory) and
+- **`internal/store`** — the storage interface. There is `memstore` (in memory) and
   `pgstore` (PostgreSQL through gorm, tables `devices`, `telemetry_readings`,
   `key_rotations`, `session_events`).
 - **`internal/scheduler`** — walks active sessions on a timer and triggers key
   rotations and firmware checks.
-- **`internal/mqttbridge`** — the embedded MQTT broker (`mochi-mqtt`);
+- **`internal/mqttbridge`** — the embedded MQTT broker (`mochi-mqtt`)
   decrypted telemetry goes to `devices/{id}/telemetry`, events to
   `devices/{id}/events`.
 - **`internal/telemetry`** — parsing payloads and recording readings.
@@ -110,7 +110,7 @@ merely being watched.
 
 The distinction between `failed` and `rejected` for firmware checks matters:
 **failed** means the device answered but the answer did not match — a sign of
-firmware tampering, which leads to revocation; **rejected** means the answer
+firmware tampering, which leads to revocation. **rejected** means the answer
 arrived too late, usually due to a slow network, and does not lead to
 revocation.
 
@@ -148,13 +148,13 @@ If `LACERT_ADMIN_TOKEN` is set, these routes require the header
 Re-enrolling the same `device_id` with the same keys returns 400/409, and that
 is **expected** — the device is simply already known. Enrolling the same
 `device_id` with **different** keys, however, is rejected, and such a device
-will fail the handshake; this is the protection against impersonation. Every
+will fail the handshake. This is the protection against impersonation. Every
 physical board must therefore have a unique `device_id`.
 
 ## Configuration
 
 Everything is set through environment variables. **The full reference of all 25
-variables with their defaults is in [`CONFIG.md`](CONFIG.md)**; the reasoning
+variables with their defaults is in [`CONFIG.md`](CONFIG.md)**. The reasoning
 behind the timings and advice on choosing them is in [`TUNING.md`](TUNING.md).
 The key ones:
 
@@ -206,7 +206,7 @@ and it would run out of memory within a week. Use PostgreSQL for real history.
 rely on composite indexes `(device_id, created_at DESC)` on telemetry,
 rotations and events, plus a separate index on `event_type` for the firmware
 check tab. With separate indexes PostgreSQL had to select every record for the
-device and sort them; with composite ones it reads exactly the rows it needs in
+device and sort them. With composite ones it reads exactly the rows it needs in
 the right order (0.25 ms instead of 1.0 ms at 300k records, and the gap widens
 as history grows). The indexes are created automatically during migration.
 

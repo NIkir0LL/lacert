@@ -7,15 +7,20 @@
 // он публикует открытый текст в топик "devices/{id}/telemetry", откуда
 // корпоративная информационная система может забрать данные привычным для
 // IoT-интеграций способом (pub/sub), не имея дела с самим LACERT-протоколом.
+//
+// Через брокер идёт уже расшифрованная телеметрия, поэтому доступ к нему
+// закрыт: подключение требует имени и пароля, подписчику разрешено только
+// читать топики устройств, а канал при желании оборачивается в TLS.
 package mqttbridge
 
 import (
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 
 	mqtt "github.com/mochi-mqtt/server/v2"
-	"github.com/mochi-mqtt/server/v2/hooks/auth"
 	"github.com/mochi-mqtt/server/v2/listeners"
 )
 
@@ -24,21 +29,60 @@ type Broker struct {
 	srv *mqtt.Server
 }
 
-// New создаёт MQTT-брокер и поднимает TCP-листенер на addr (например, ":1883").
-// auth.AllowAll используется для прототипа, так как брокер работает только в
-// изолированной корпоративной сети (см. постановку задачи в работе); для
-// промышленного развёртывания сюда следует подключить отдельный hook
-// аутентификации по логину/паролю или mTLS.
-func New(addr string) (*Broker, error) {
+// Options — настройки брокера.
+type Options struct {
+	// Addr — адрес прослушивания, например ":1883".
+	Addr string
+
+	// Username и Password — учётные данные для подписчиков. Обязательны:
+	// брокер отдаёт расшифрованную телеметрию, и запускать его открытым
+	// нельзя. Если они пусты, New возвращает ErrNoCredentials.
+	Username string
+	Password string
+
+	// TLSConfig, если задан, включает шифрование канала до подписчиков.
+	// Без него телеметрия идёт по сети открытым текстом: сам протокол LACERT
+	// защищает участок «устройство — шлюз», а дальше данные расшифрованы, и
+	// защищать их — задача этого канала.
+	TLSConfig *tls.Config
+
+	// Logger — куда писать отказы в доступе. Если не задан, они не логируются.
+	Logger *slog.Logger
+}
+
+// ErrNoCredentials возвращается, когда брокеру не заданы учётные данные.
+// Прежде на его месте стоял режим «пускать всех», при котором любой, кто
+// дотянулся до порта, читал всю расшифрованную телеметрию.
+var ErrNoCredentials = errors.New("mqtt: не заданы имя пользователя и пароль")
+
+// New создаёт MQTT-брокер и поднимает листенер на указанном адресе.
+func New(opts Options) (*Broker, error) {
+	if opts.Username == "" || opts.Password == "" {
+		return nil, ErrNoCredentials
+	}
+	logger := opts.Logger
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+
 	srv := mqtt.New(&mqtt.Options{
 		InlineClient: true,
 		Logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 	})
-	if err := srv.AddHook(new(auth.AllowHook), nil); err != nil {
+	hook := &authHook{
+		username: []byte(opts.Username),
+		password: []byte(opts.Password),
+		logger:   logger,
+	}
+	if err := srv.AddHook(hook, nil); err != nil {
 		return nil, fmt.Errorf("add auth hook: %w", err)
 	}
 
-	tcp := listeners.NewTCP(listeners.Config{ID: "lacert-mqtt", Address: addr})
+	tcp := listeners.NewTCP(listeners.Config{
+		ID:        "lacert-mqtt",
+		Address:   opts.Addr,
+		TLSConfig: opts.TLSConfig,
+	})
 	if err := srv.AddListener(tcp); err != nil {
 		return nil, fmt.Errorf("add tcp listener: %w", err)
 	}
