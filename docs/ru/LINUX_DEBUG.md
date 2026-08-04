@@ -59,7 +59,7 @@ LACERT_ADMIN_TOKEN=<ваш-токен> LACERT_DEVICE_ID=linux-test-1 \
 Например, против локального шлюза:
 
 ```bash
-LACERT_ADMIN_TOKEN=41b1751e... ./lacert-client 127.0.0.1 8080 7700
+LACERT_ADMIN_TOKEN=ВАШ_ТОКЕН ./lacert-client 127.0.0.1 8080 7700
 ```
 
 Клиент:

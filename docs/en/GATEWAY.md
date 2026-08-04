@@ -31,7 +31,7 @@ Packages:
   issuing and verifying firmware challenges, handling ACKs, revoking devices.
 - **`internal/transport/tcpserver`** — accepting TCP connections, reading and
   writing frames, passing them to the gateway.
-- **`internal/wire`** — binary framing (see `PROTOCOL_SPEC.md`).
+- **`internal/wire`** — binary framing (see [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md)).
 - **`internal/crypto`** — ML-KEM-1024, ECDSA P-256, BLAKE3, ChaCha20-Poly1305,
   key derivation and rotation.
 - **`internal/api`** — REST built on `chi`, Bearer-token authentication.
@@ -77,7 +77,7 @@ log) are returned only with a valid token — an outsider has no business knowin
 how the gateway is configured.
 
 Note that in the current scheme the shared secret is encapsulated under the
-**device's** public key (see `PROTOCOL_SPEC.md`, section 3.2), so the gateway's
+**device's** public key (see [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md), section 3.2), so the gateway's
 own public key takes no part in the handshake: the firmware retrieves it but
 never uses it.
 
@@ -183,7 +183,7 @@ are useful when testing without real boards:
 | `LACERT_PROFILE` | `devicesim` | sensor profile (which telemetry fields to send) |
 | `LACERT_STRESS_WAIT` | `stresstest` | pause before the scenarios start |
 | `LACERT_STRESS_D4_DELAY` | `stresstest` | response delay in scenario D4 (checks that a stale challenge is refused) |
-| `LACERT_TEST_PG_DSN` | `pgstore` tests | connection to a test database; without it the PostgreSQL tests are skipped |
+| `LACERT_TEST_PG_DSN` | `pgstore` tests | connection to a test database. Without it the PostgreSQL tests are skipped |
 
 ## Robustness and resource limits
 
@@ -234,7 +234,7 @@ of memory per device**.
 
 Cryptography is not the bottleneck: on the server a handshake takes a fraction
 of a millisecond and a rotation tens of microseconds. It is expensive only on
-the microcontroller itself — see `FIRMWARE.md`. What limits the system is the
+the microcontroller itself — see [`FIRMWARE.md`](FIRMWARE.md). What limits the system is the
 database and the network, not computation.
 
 Two problems were found and fixed as a result of these measurements:

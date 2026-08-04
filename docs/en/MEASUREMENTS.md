@@ -217,7 +217,7 @@ signature costs, not of resistance to a quantum adversary. Replacing ECDSA with
 Ed25519 would not have brought the system closer to post-quantum protection:
 both schemes rest on the same problem and are equally vulnerable to Shor's
 algorithm. The final choice of signature scheme and the reasons for rejecting
-Ed25519 are set out in `PROTOCOL_SPEC.md`, section 9.
+Ed25519 are set out in [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md), section 9.
 
 ### 3.3. The cost of the signature choice at protocol level
 

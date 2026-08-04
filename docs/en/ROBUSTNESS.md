@@ -141,7 +141,7 @@ single Msg2 produced two defects at once:
 The same oversight was present in rotation handling (`handle_rotation_v2`) —
 without the write there, but with the same out-of-bounds read.
 
-Notably, the device does not authenticate the gateway (see `PROTOCOL_SPEC.md`,
+Notably, the device does not authenticate the gateway (see [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md),
 section 3), so such a frame can be sent by anyone who can reach the network, not
 only by the genuine gateway.
 
@@ -355,7 +355,7 @@ production system with ESP32 devices, all of the system's timing parameters can
 now be overridden through the gateway's environment variables, without changing
 code. If a variable is not set, the production default applies.
 
-Configurable parameters (the full table and recommendations are in `TUNING.md`):
+Configurable parameters (the full table and recommendations are in [`TUNING.md`](TUNING.md)):
   `LACERT_ROTATION_INTERVAL` (300 s), `LACERT_ROTATION_PACKET_LIMIT` (300),
   `LACERT_ROTATION_ACK_TIMEOUT` (5 s), `LACERT_ROTATION_CHECK_PERIOD` (5 s),
   `LACERT_MAX_ROTATION_FAILURES` (3), `LACERT_FIRMWARE_INTERVAL` (1 h),

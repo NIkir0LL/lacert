@@ -54,7 +54,7 @@ a fraction of a second even in the worst case.
   (Earlier revisions of this document quoted ≈61 µs here — that was a rotation
   on an x86-64 server. On a microcontroller it is three orders of magnitude more
   expensive, and the interval has to be planned from the hardware figures. See
-  the table in `FIRMWARE.md`.)
+  the table in [`FIRMWARE.md`](FIRMWARE.md).)
 
 If you switch to **SLH-DSA**, these windows need to grow: on a server its
 signing takes ≈336 ms against ≈0.35 ms for ECDSA, and on a microcontroller the

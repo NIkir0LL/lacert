@@ -31,6 +31,10 @@ The protocol's basic primitives were implemented and verified:
 - **Offline enrollment** — parameters printed over the serial port with a
   checksum that guards against typos during manual transfer.
 
+Exact frame formats, field sizes and limits are in
+[`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md). The measured figures are in
+[`MEASUREMENTS.md`](MEASUREMENTS.md).
+
 ---
 
 ## Stage 2. The transport layer
@@ -195,7 +199,7 @@ Both were fixed and re-verified by the same test.
 
 ---
 
-## Stage 6. Devices stopped hanging offline; sensor profiles
+## Stage 6. Devices stopped hanging offline, and sensor profiles arrived
 
 A real defect found during trials on a server with PostgreSQL: after **any**
 restart of `gatewayd` with built-in emulation enabled, every emulated device

@@ -4,7 +4,7 @@
 
 The LACERT protocol client written in C for ESP-IDF. A single project builds for
 three boards: XIAO ESP32-C6 (RISC-V), XIAO ESP32-S3 and ESP32-S3-DevKitC-1
-(Xtensa). Step-by-step building and flashing is covered in `FIRMWARE_BUILD.md`
+(Xtensa). Step-by-step building and flashing is covered in [`FIRMWARE_BUILD.md`](FIRMWARE_BUILD.md)
 this document describes how the code is organised.
 
 ## Files
@@ -90,7 +90,7 @@ efuse on a production device.
 If NVS is erased (`idf.py erase-flash`), the device generates new keys. The
 gateway will then still hold the previous key for that `device_id`, and the
 handshake will fail. The fix is to change `LACERT_DEVICE_ID` or delete the
-record on the gateway (see `GATEWAY.md`).
+record on the gateway (see [`GATEWAY.md`](GATEWAY.md)).
 
 ## Firmware hash
 
@@ -211,7 +211,8 @@ quoting such figures as a characteristic of the protocol would be wrong.
 | Option | Why |
 |--------|-----|
 | `CONFIG_COMPILER_OPTIMIZATION_SIZE` | build with `-Os` instead of `-Og`: smaller and noticeably faster code |
-| `CONFIG_MBEDTLS_HARDWARE_MPI` | the hardware big-number unit — the key accelerator for ECDSA |
+| `CONFIG_MBEDTLS_HARDWARE_MPI` | the hardware bignum unit, enabled on both boards |
+| `CONFIG_MBEDTLS_HARDWARE_ECC` | dedicated elliptic-curve accelerator. Of the two boards used here, present **on the ESP32-C6 and absent on the ESP32-S3**, and it is what creates the signing-speed difference between the boards — verified by measurement, see [`ECC_ACCELERATOR.md`](ECC_ACCELERATOR.md) |
 | `CONFIG_MBEDTLS_HARDWARE_SHA` | hardware SHA-256 |
 | `CONFIG_MBEDTLS_ECP_NIST_OPTIM` | optimized arithmetic for P-256 |
 
@@ -265,23 +266,20 @@ otherwise the result is distorted:
   watchdog is not a concern — the entire loop finishes within single-digit
   milliseconds.
 
-### Results (one and the same implementation)
+### Results
 
-| Operation | x86-64 | ESP32-S3 (Xtensa, 240 MHz) | ESP32-C6 (RISC-V, 160 MHz) |
-|-----------|--------|----------------------------|----------------------------|
-| ECDSA P-256 sign | 0.35 ms | 170.2 ms | **22.2 ms** |
-| ECDSA P-256 keypair | 0.30 ms | 156.7 ms | **9.6 ms** |
-| ML-KEM-1024 keypair | 0.11 ms | 16.7 ms | 15.1 ms |
-| ML-KEM-1024 encapsulate | 0.11 ms | 18.4 ms | 16.0 ms |
-| ML-KEM-1024 decapsulate | 0.12 ms | 21.1 ms | 17.8 ms |
-| BLAKE3 (key derivation) | 2.0 µs | 18.0 µs | 19.8 µs |
-| SHA-256 (96 bytes) | 0.7 µs | 60.1 µs | 41.7 µs |
-| ChaCha20-Poly1305 seal | 12.4 µs | 150.5 µs | 210.6 µs |
-| Free heap | — | ~252 KB | ~295 KB |
+The full measurement table, the methodology and the conditions for reproducing it
+are in [`MEASUREMENTS.md`](MEASUREMENTS.md). Only the values this document's
+conclusions rest on are repeated here.
 
-The measurements were taken with `LACERT_SHARED_CRYPTO_CTX = 1` (the shared
-cryptographic context). The comparison against the original version, along with
-the memory cost of the optimization, is in `MEASUREMENTS.md`, section 3.4.
+Quoted from there, measured with `LACERT_SHARED_CRYPTO_CTX = 1` (the shared
+cryptographic context):
+
+| Operation | ESP32-S3 | ESP32-C6 |
+|-----------|----------|----------|
+| ECDSA P-256, sign | 170.2 ms | **22.2 ms** |
+| ML-KEM-1024, encapsulate | 18.4 ms | 16.0 ms |
+| Free heap | ~252 KB | ~295 KB |
 
 **Main conclusion.** ECDSA runs **7.7× faster** on the ESP32-C6 than on the
 ESP32-S3, even though the C6 is the weaker chip (160 MHz against 240, one core
@@ -290,6 +288,10 @@ against two). On every other operation the boards are on par (ML-KEM 17.8 agains
 lies not in core performance but in the **hardware elliptic-curve accelerator**,
 which the C6 has and the S3 does not. For cryptography on a microcontroller, a
 dedicated accelerator matters more than clock speed.
+
+This is not an inference but a measured fact: a C6 build with the accelerator
+disabled signs in 158.05 ms instead of 21.90, that is 7.2 times slower. The
+experiment is described in [`ECC_ACCELERATOR.md`](ECC_ACCELERATOR.md).
 
 **Second conclusion.** ML-KEM barely depends on the platform: these chips have
 no accelerators for lattice cryptography, so everything runs in software. Put

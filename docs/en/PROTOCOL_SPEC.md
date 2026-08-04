@@ -366,11 +366,14 @@ but for the ESP32 **ECDSA P-256 is strongly recommended**:
   from the hardware elliptic-curve accelerator: the ESP32-C6 has one and the
   ESP32-S3 does not, so on the S3 the operation runs entirely in software
   (mbedTLS).
-- **SLH-DSA**: signing takes hundreds of milliseconds even on a server — roughly
-  9300× slower than ECDSA — and signatures are 7,856 bytes. On the ESP32 this
-  is unacceptable in both time and memory.
+- **SLH-DSA**: 234.3 ms per signature on a server, roughly 9300× slower than
+  ECDSA, at 7856 bytes each. On the chip itself it proved far more expensive
+  still — 101 seconds per signature — so it is not used in the firmware.
 
-This is confirmed by measurements (see `MEASUREMENTS.md`). ML-KEM provides
+All figures are quoted from [`MEASUREMENTS.md`](MEASUREMENTS.md), which also
+holds the methodology and the conditions for reproducing them.
+
+This is confirmed by measurements (see [`MEASUREMENTS.md`](MEASUREMENTS.md)). ML-KEM provides
 post-quantum strength at the key-exchange layer. The signature remains classical.
 
 Worth keeping in mind: on the ESP32-S3 the signature turns out to be the most
@@ -404,7 +407,7 @@ project verified is the integration: signing and verification on a generated key
 pair, rejection of a tampered message, and completion of a full handshake
 (`TestEd25519RoundTrip` and `TestHandshakeEd25519` in `internal/crypto`).
 Measurements on the server platform showed a noticeable gain — signing 23 %
-faster and 99× less memory allocated (see `MEASUREMENTS.md`, section 3.2).
+faster and 99× less memory allocated (see [`MEASUREMENTS.md`](MEASUREMENTS.md), section 3.2).
 
 The replacement was nevertheless rejected:
 
@@ -414,9 +417,10 @@ The replacement was nevertheless rejected:
 2. **It requires a fourth external dependency.** ECDSA is part of mbedTLS and is
    therefore already present in ESP-IDF (see section 10), whereas Ed25519 would
    have to be pulled in as a separate library.
-3. **On the ESP32-C6 it would make things worse.** That board's hardware
-   accelerator speeds up ECDSA operations by roughly 7.7× (`MEASUREMENTS.md`,
-   observation 8). There is no hardware support for Ed25519.
+3. **On the ESP32-C6 the swap would make things worse.** That board's hardware
+   accelerator speeds up ECDSA operations by roughly 7.7×, confirmed by direct
+   experiment — [`ECC_ACCELERATOR.md`](ECC_ACCELERATOR.md). The accelerator works
+   with NIST curves, and there is no hardware support for Ed25519.
 
 The Ed25519 implementation is retained in the gateway core (`internal/crypto`)
 as a tool for comparative measurements, but is not used in the firmware or in
@@ -428,7 +432,7 @@ the protocol.
 
 | Primitive | Where to get it |
 |-----------|-----------------|
-| ECDSA P-256 | mbedTLS (bundled with ESP-IDF; hardware acceleration on the ESP32-C6 only) |
+| ECDSA P-256 | mbedTLS, bundled with ESP-IDF. Hardware acceleration on the ESP32-C6 only |
 | ChaCha20-Poly1305 | mbedTLS (bundled) |
 | SHA-256 | mbedTLS / ROM (hardware) |
 | ML-KEM-1024 | PQClean — wired in as the `firmware/components/ml_kem` component |

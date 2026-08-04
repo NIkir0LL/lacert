@@ -144,7 +144,7 @@ psql "$LACERT_PG_DSN" -c "DELETE FROM devices WHERE device_id='xiao-c6';"
 
 ## Примечание о `bench_host`
 
-Для сборки хостового бенчмарка (`MEASUREMENTS.md`, раздел 6.2) нужен флаг `-I.`,
+Для сборки хостового бенчмарка ([`MEASUREMENTS.md`](MEASUREMENTS.md), раздел 6.2) нужен флаг `-I.`,
 иначе сборка падает на отсутствующем `esp_random.h`. В `linux-debug/` есть
 заглушка `esp_random.h` (случайность из `getrandom(2)`, при недоступности — из
 `/dev/urandom`), позволяющая воспроизвести замеры на базовой платформе.

@@ -25,10 +25,17 @@ purely software computation.
 Discussion of this result (see Acknowledgements) showed that the confusion comes
 from not distinguishing two separate peripherals:
 
-| Block | What it does | C5 | C6 | S3 |
-|-------|--------------|----|----|-----|
-| **ECC Accelerator** | speeds up elliptic-curve arithmetic | yes | **yes** | **no** |
-| **ECDSA_DS** (signing) | performs the whole signature, key held in eFuse | yes | no | no |
+| Block | What it does | C6 | S3 | found on |
+|-------|--------------|----|-----|----------|
+| **ECC Accelerator** | speeds up elliptic-curve arithmetic | **yes** | **no** | some of the family |
+| **ECDSA_DS** (signing) | performs the whole signature, key held in eFuse | no | no | H2, C5, C61, P4 and others |
+
+The list of chips carrying the signing peripheral is deliberately left
+incomplete: it grows with every generation, and any list written into prose will
+go stale. The dependable way to check is ESP-IDF's own capability headers, which
+declare `SOC_ECC_SUPPORTED` and `SOC_ECDSA_SUPPORTED` (see below). For the four
+named above, the presence of the block was checked against the official ESP-IDF
+documentation pages devoted to it.
 
 Which has consequences worth keeping in mind:
 
@@ -329,19 +336,48 @@ more than many tasks are given in total, and an order of magnitude more than all
 the classical cryptography in the protocol. SLH-DSA, meanwhile, spends under a
 kilobyte and pays in time instead.
 
+## A security note on the signing peripheral
+
+Espressif advisory **AR2026-006** concerns that very peripheral: on four chips —
+H2, C5, C61 and P4 — the ROM-level signature check can accept an invalid
+signature as valid. An attacker able to replace the firmware image in flash can
+thereby bypass Secure Boot.
+
+The advisory has no bearing on this work, and it is worth saying so plainly so
+that no false connection is drawn:
+
+- the flaw sits in the bootloader's signature check in ROM, not in the
+  application-level verification the protocol performs
+- neither the ESP32-C6 nor the ESP32-S3, on which every measurement here was
+  taken, appears among the affected chips
+- anyone using RSA rather than ECDSA for Secure Boot is unaffected entirely,
+  while on the C61 there is no RSA fallback, since ECDSA is the only scheme it
+  supports
+
+It is mentioned here because this work is about device authenticity, and a reader
+may reasonably expect known weaknesses in the corresponding hardware blocks to be
+named.
+
 ## Acknowledgements
 
 The distinction between the ECC accelerator and the ECDSA_DS signing peripheral
 entered this document through a discussion with
-[artkeller-42](https://github.com/artkeller-42), who maintains a capability matrix for
-the ESP32 family
-([ESP32Features](https://github.com/artkeller-42/ESP32Features)). He checked the
+[`artkeller-42`](https://github.com/artkeller), who maintains a capability matrix
+for the ESP32 family —
+[ESP32Features](https://github.com/artkeller/ESP32Features). He checked the
 reference manuals and established that a dedicated ECDSA_DS signing peripheral
-exists only on the C5 and P4, while the C6's signing peripheral is RSA-flavoured.
+belongs to other chips in the family rather than to the C6 or the S3, while the
+C6's own signing peripheral is RSA-flavoured.
 That correction sharpened the explanation: the cause is not the signing
 peripheral, which neither chip has, but the ECC accelerator, which the C6 has and
 the S3 does not.
 
+He also pointed out that the original list of chips carrying the signing
+peripheral was incomplete: there are not two but at least six, and the single gap
+in his own table turned out to be the P4. The list here has been replaced with a
+pointer to the machine-readable source, which will not go stale.
+
 From the same discussion came a pointer to the German BSI TR-02102 standard,
 which sets 2030 as the deadline for data in the high-protection category — a
-stricter date than the 2035 figure this work originally cited.
+stricter date than the 2035 figure this work originally cited — and to advisory
+AR2026-006, discussed above.

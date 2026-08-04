@@ -153,7 +153,7 @@ ACK_TIMEOUT                откат зависшей ротации, засч�
 | `LACERT_PROFILE` | `devicesim` | профиль датчиков: `climate`, `power`, `pressure`, `fuel`, `motor`. Если не задан — выбирается детерминированно по `LACERT_DEVICE_ID` |
 | `LACERT_STRESS_WAIT` | `stresstest` | пауза перед началом сценариев атак |
 | `LACERT_STRESS_D4_DELAY` | `stresstest` | задержка ответа в сценарии D4 (проверка, что устаревший challenge отклоняется) |
-| `LACERT_TEST_PG_DSN` | тесты `pgstore` | подключение к тестовой БД; без неё тесты PostgreSQL пропускаются |
+| `LACERT_TEST_PG_DSN` | тесты `pgstore` | подключение к тестовой БД. Без неё тесты PostgreSQL пропускаются |
 
 Профили задают, какие поля телеметрии шлёт симулированное устройство:
 

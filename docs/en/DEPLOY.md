@@ -156,7 +156,7 @@ Check that the ports are reachable from the local network (see the next section)
 and that the gateway listens on all interfaces (`:7700`, not `127.0.0.1:7700`).
 
 Building and flashing, along with a walkthrough of common problems, are covered
-in `FIRMWARE_BUILD.md`. The internals of the firmware are in `FIRMWARE.md`.
+in [`FIRMWARE_BUILD.md`](FIRMWARE_BUILD.md). The internals of the firmware are in [`FIRMWARE.md`](FIRMWARE.md).
 
 ## The complete settings reference
 

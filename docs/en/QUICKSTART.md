@@ -3,7 +3,7 @@
 # LACERT — quick start
 
 A short guide to building, testing and running the system. The architecture and
-the protocol are described in full in `OVERVIEW.md` and `PROTOCOL_SPEC.md`.
+the protocol are described in full in [`OVERVIEW.md`](OVERVIEW.md) and [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md).
 
 ## Requirements
 

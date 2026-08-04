@@ -157,7 +157,7 @@ These belong to the helper programs under `cmd/` rather than to the gateway.
 | `LACERT_PROFILE` | `devicesim` | sensor profile: `climate`, `power`, `pressure`, `fuel`, `motor`. If unset, chosen deterministically from `LACERT_DEVICE_ID` |
 | `LACERT_STRESS_WAIT` | `stresstest` | pause before the attack scenarios begin |
 | `LACERT_STRESS_D4_DELAY` | `stresstest` | response delay in scenario D4 (verifies that a stale challenge is refused) |
-| `LACERT_TEST_PG_DSN` | `pgstore` tests | connection to a test database; without it the PostgreSQL tests are skipped |
+| `LACERT_TEST_PG_DSN` | `pgstore` tests | connection to a test database. Without it the PostgreSQL tests are skipped |
 
 Profiles determine which telemetry fields a simulated device sends:
 

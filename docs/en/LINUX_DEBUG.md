@@ -61,7 +61,7 @@ LACERT_ADMIN_TOKEN=<your-token> LACERT_DEVICE_ID=linux-test-1 \
 For example, against a local gateway:
 
 ```bash
-LACERT_ADMIN_TOKEN=41b1751e... ./lacert-client 127.0.0.1 8080 7700
+LACERT_ADMIN_TOKEN=YOUR_TOKEN ./lacert-client 127.0.0.1 8080 7700
 ```
 
 The client will:

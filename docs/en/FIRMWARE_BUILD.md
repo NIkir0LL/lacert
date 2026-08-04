@@ -7,7 +7,7 @@ for all three boards**: XIAO ESP32-C6 (RISC-V), XIAO ESP32-S3 and ESP32-S3-N8R2
 (Xtensa). The architectural differences are hidden inside ESP-IDF, so no
 board-specific code is needed.
 
-The wire format follows `PROTOCOL_SPEC.md` byte for byte.
+The wire format follows [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) byte for byte.
 
 ## Status: READY TO FLASH
 
@@ -160,10 +160,14 @@ PSRAM on the S3-N8R2 or reduce the buffers.
 **ECDSA P-256** is used, following the analysis (SLH-DSA is impractical on the
 ESP32: signing takes hundreds of milliseconds and produces 7,856 bytes).
 
-A hardware elliptic-curve accelerator is present **only on the ESP32-C6**, where
+Of the two boards used here, a hardware elliptic-curve accelerator is present **only on the ESP32-C6**, where
 signing takes 22.2 ms. The ESP32-S3 has no such block, so the same operation
 runs in software and takes 170.2 ms — a difference of 7.7×. This is worth
 keeping in mind when choosing a board if handshakes happen frequently.
+
+The figures are quoted from [`MEASUREMENTS.md`](MEASUREMENTS.md), and the cause
+of the gap was verified by a separate experiment —
+[`ECC_ACCELERATOR.md`](ECC_ACCELERATOR.md).
 
 ## Common build and flashing problems
 
@@ -269,7 +273,7 @@ operations, run by the same code, is executed on the host by
 `linux-debug/bench_host.c`.
 
 Results for all boards, and the conclusions drawn from them, are in
-`FIRMWARE.md`.
+[`FIRMWARE.md`](FIRMWARE.md).
 
 **The measurements depend on build settings.** By default ESP-IDF builds with
 `-Og` (no optimization), and on such a build cryptography runs several times

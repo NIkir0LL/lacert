@@ -23,20 +23,20 @@ ESP32-S3-DevKitC-1 (Xtensa).
 | Document | About |
 |----------|-------|
 | `OVERVIEW.md` (this file) | overview, building, running |
-| `PROTOCOL_SPEC.md` | byte-level protocol specification |
-| `GATEWAY.md` | gateway architecture and API |
-| `CONFIG.md` | **full reference of `.env` variables** |
-| `MEASUREMENTS.md` | **measurement methodology and results** (how every figure was obtained and how to reproduce it) |
-| `ECC_ACCELERATOR.md` | verified by measurement: what creates the signing-speed gap between the C6 and the S3 |
-| `FIRMWARE.md` | how the ESP32 firmware is built internally |
-| `TUNING.md` | timing parameters via environment variables |
-| `FIRMWARE_BUILD.md` | step-by-step build and flashing |
-| `LINUX_DEBUG.md` | debugging the protocol on Linux without hardware |
-| `QUICKSTART.md` | getting the gateway running quickly |
-| `ROBUSTNESS.md` | robustness: weak points found and how they were closed |
-| `DEPLOY.md` | server deployment |
-| `BOARD_MEASUREMENTS.md` | how on-board measurements are taken |
-| `HISTORY.md` | development journal: what was built at each stage and why |
+| [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md) | byte-level protocol specification |
+| [`GATEWAY.md`](GATEWAY.md) | gateway architecture and API |
+| [`CONFIG.md`](CONFIG.md) | **full reference of `.env` variables** |
+| [`MEASUREMENTS.md`](MEASUREMENTS.md) | **measurement methodology and results** (how every figure was obtained and how to reproduce it) |
+| [`ECC_ACCELERATOR.md`](ECC_ACCELERATOR.md) | verified by measurement: what creates the signing-speed gap between the C6 and the S3 |
+| [`FIRMWARE.md`](FIRMWARE.md) | how the ESP32 firmware is built internally |
+| [`TUNING.md`](TUNING.md) | timing parameters via environment variables |
+| [`FIRMWARE_BUILD.md`](FIRMWARE_BUILD.md) | step-by-step build and flashing |
+| [`LINUX_DEBUG.md`](LINUX_DEBUG.md) | debugging the protocol on Linux without hardware |
+| [`QUICKSTART.md`](QUICKSTART.md) | getting the gateway running quickly |
+| [`ROBUSTNESS.md`](ROBUSTNESS.md) | robustness: weak points found and how they were closed |
+| [`DEPLOY.md`](DEPLOY.md) | server deployment |
+| [`BOARD_MEASUREMENTS.md`](BOARD_MEASUREMENTS.md) | how on-board measurements are taken |
+| [`HISTORY.md`](HISTORY.md) | development journal: what was built at each stage and why |
 
 ---
 
@@ -60,37 +60,40 @@ ESP32-S3-DevKitC-1 (Xtensa).
    with.
 
 Each step, along with frame and field layouts, is described in
-`PROTOCOL_SPEC.md`.
+[`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md).
 
 ---
 
 ## Key research result
 
 The hypothesis that a post-quantum signature (SLH-DSA) would pay off was not
-confirmed: its signing is roughly 9,300× slower than ECDSA (hundreds of
-milliseconds against tens of microseconds, see MEASUREMENTS) and its signatures are about 110× larger (7,856 bytes against 71).
-The conclusion: **post-quantum strength is placed on key exchange (ML-KEM-1024),
-while the signature stays with ECDSA P-256.** The system supports both signature
-algorithms (switchable through `SigAlgorithm`), but ECDSA is the default and is
-what runs on the device.
+confirmed: its signing is roughly 9,300× slower than ECDSA on a server, and its
+signatures are about 110× larger (7,856 bytes against 71). The conclusion:
+**post-quantum strength is placed on key exchange (ML-KEM-1024), while the
+signature stays with ECDSA P-256.** The system supports both signature algorithms
+(switchable through `SigAlgorithm`), but ECDSA is the default and is what runs on
+the device.
 
 **Measurements on real boards support this conclusion.** Even ECDSA is expensive
-on a microcontroller: 22 ms on the ESP32-C6 and 170 ms on the ESP32-S3 (against
-0.35 ms on the server). SLH-DSA, being orders of magnitude heavier, is simply not
-viable on chips of this class. ML-KEM itself, meanwhile, remains moderate —
-16–23 ms — and barely depends on the platform.
+on a microcontroller: 22 ms on the ESP32-C6 and 170 ms on the ESP32-S3, against
+0.35 ms on the server. SLH-DSA takes 101 seconds per signature on the chip, which
+rules it out there entirely. ML-KEM meanwhile stays moderate at 16–23 ms and
+barely depends on the platform.
 
 Compared against DTLS 1.2 at comparable guarantees, LACERT establishes a session
 3.2× faster, and the post-quantum ML-KEM key exchange costs 11× less than
-classical ECDHE on a server and 13–15× less on the ESP32 boards. Details are in
-`MEASUREMENTS.md`, section 3.5.
+classical ECDHE on a server and 13–15× less on the ESP32 boards.
 
-A separate finding: **ECDSA runs 7.7× faster on the ESP32-C6 than on the
+A separate result: **ECDSA runs 7.7× faster on the ESP32-C6 than on the
 ESP32-S3**, even though the C6 is the weaker chip (160 MHz against 240, one core
-against two). On every other operation the two boards are on par, so the cause
-is specifically the hardware elliptic-curve accelerator, which the C6 has and
-the S3 does not. For cryptography on a microcontroller, a dedicated accelerator
-matters more than clock speed. The full table is in `FIRMWARE.md`.
+against two). The cause is a dedicated hardware elliptic-curve accelerator, which
+the C6 has and the S3 does not. This has been confirmed by direct experiment:
+with the accelerator disabled the same chip signs 7.2 times slower.
+
+Every figure in this section is quoted from
+[`MEASUREMENTS.md`](MEASUREMENTS.md), which holds the full tables, the
+methodology and the conditions for reproducing them. The accelerator experiment
+is described in [`ECC_ACCELERATOR.md`](ECC_ACCELERATOR.md).
 
 ---
 
@@ -185,7 +188,7 @@ sudo bash deploy/bare-metal/install.sh
 ```
 
 The script is idempotent and does not overwrite an existing
-`/etc/lacert/gatewayd.env`. Details are in `GATEWAY.md`.
+`/etc/lacert/gatewayd.env`. Details are in [`GATEWAY.md`](GATEWAY.md).
 
 ---
 
@@ -206,8 +209,8 @@ idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
 The complete instructions, test-bench setup and a walkthrough of common problems
-are in `FIRMWARE_BUILD.md`. The internals of the firmware are covered in
-`FIRMWARE.md`.
+are in [`FIRMWARE_BUILD.md`](FIRMWARE_BUILD.md). The internals of the firmware are covered in
+[`FIRMWARE.md`](FIRMWARE.md).
 
 ---
 
@@ -216,7 +219,7 @@ are in `FIRMWARE_BUILD.md`. The internals of the firmware are covered in
 The same client code (`firmware/main/lacert_wire.c` and `lacert_client.c`) also
 builds for Linux under `firmware/linux-debug/`, with cryptography provided by
 OpenSSL. This makes it possible to run the entire protocol against the gateway
-without a board. See `LINUX_DEBUG.md`.
+without a board. See [`LINUX_DEBUG.md`](LINUX_DEBUG.md).
 
 ---
 
