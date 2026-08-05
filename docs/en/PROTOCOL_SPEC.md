@@ -54,7 +54,8 @@ Every message is wrapped in a frame:
 ```
 
 - Payload length is a BE `uint32` and does not include the 5-byte header.
-- Maximum frame size: **65536** bytes (protection against garbage input).
+- Maximum payload size: **65536** bytes (protection against garbage input).
+  A whole frame, header included, reaches 65541 bytes.
 
 **Message types (1 byte):**
 

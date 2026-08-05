@@ -583,8 +583,21 @@ button, input, textarea, select {
   font-size: 12px;
   resize: vertical;
 }
-.mono-input:focus { outline: none; border-color: var(--amber); }
+/* Обводку фокуса не снимаем: без неё работающий с клавиатуры теряет место,
+   где он находится. Смена цвета рамки одна этого не заменяет. */
+.mono-input:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+  border-color: var(--amber);
+}
+.mono-input:focus { border-color: var(--amber); }
 .mono-input.small { font-size: 11px; }
+.field-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
 
 .field-divider {
   margin: 18px 0 4px;

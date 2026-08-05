@@ -38,7 +38,7 @@
         <h1>Устройства</h1>
         <div class="panel-head-actions">
           <span id="device-count" class="muted"></span>
-          <button id="refresh-btn" class="btn btn-ghost" title="Обновить список">↻</button>
+          <button id="refresh-btn" class="btn btn-ghost" title="Обновить список" aria-label="Обновить список">↻</button>
           <button id="register-btn" class="btn btn-primary">+ зарегистрировать</button>
         </div>
       </div>
@@ -56,13 +56,13 @@
       <table class="device-table" id="device-table">
         <thead>
           <tr>
-            <th class="col-status"></th>
-            <th>device id</th>
-            <th>алгоритм</th>
-            <th>статус</th>
-            <th>последнее сообщение</th>
-            <th>последний раз на связи</th>
-            <th class="col-actions"></th>
+            <th scope="col" class="col-status"></th>
+            <th scope="col">device id</th>
+            <th scope="col">алгоритм</th>
+            <th scope="col">статус</th>
+            <th scope="col">последнее сообщение</th>
+            <th scope="col">последний раз на связи</th>
+            <th scope="col" class="col-actions"></th>
           </tr>
         </thead>
         <tbody id="device-rows"></tbody>
@@ -113,7 +113,7 @@
           <input type="datetime-local" id="range-until" class="mono-input small">
           <button id="range-apply" class="btn btn-ghost btn-sm">применить</button>
         </div>
-        <button id="mon-refresh" class="btn btn-ghost btn-sm" title="Обновить">↻</button>
+        <button id="mon-refresh" class="btn btn-ghost btn-sm" title="Обновить" aria-label="Обновить">↻</button>
       </div>
 
       <div id="mon-empty" class="empty-state hidden">
@@ -132,7 +132,7 @@
       <div class="table-scroll">
       <table class="device-table" id="mon-history-table">
         <thead>
-          <tr><th>время</th><th>сырые данные</th></tr>
+          <tr><th scope="col">время</th><th scope="col">сырые данные</th></tr>
         </thead>
         <tbody id="mon-history-rows"></tbody>
       </table>
@@ -149,7 +149,7 @@
           <select class="mono-input" id="rot-device-select">
             <option value="">все устройства</option>
           </select>
-          <button id="rot-refresh" class="btn btn-ghost" title="Обновить">↻</button>
+          <button id="rot-refresh" class="btn btn-ghost" title="Обновить" aria-label="Обновить">↻</button>
         </div>
       </div>
 
@@ -169,13 +169,13 @@
       <table class="device-table" id="rot-table">
         <thead>
           <tr>
-            <th class="col-status"></th>
-            <th>время</th>
-            <th>device id</th>
-            <th>инициатор</th>
-            <th>№ ротации</th>
-            <th>старый ключ</th>
-            <th>новый ключ</th>
+            <th scope="col" class="col-status"></th>
+            <th scope="col">время</th>
+            <th scope="col">device id</th>
+            <th scope="col">инициатор</th>
+            <th scope="col">№ ротации</th>
+            <th scope="col">старый ключ</th>
+            <th scope="col">новый ключ</th>
           </tr>
         </thead>
         <tbody id="rot-rows"></tbody>
@@ -192,7 +192,7 @@
           <select class="mono-input" id="fw-device-select">
             <option value="">все устройства</option>
           </select>
-          <button id="fw-refresh" class="btn btn-ghost" title="Обновить">↻</button>
+          <button id="fw-refresh" class="btn btn-ghost" title="Обновить" aria-label="Обновить">↻</button>
         </div>
       </div>
 
@@ -211,11 +211,11 @@
       <table class="device-table" id="fw-table">
         <thead>
           <tr>
-            <th class="col-status"></th>
-            <th>время</th>
-            <th>device id</th>
-            <th>результат</th>
-            <th>подробности</th>
+            <th scope="col" class="col-status"></th>
+            <th scope="col">время</th>
+            <th scope="col">device id</th>
+            <th scope="col">результат</th>
+            <th scope="col">подробности</th>
           </tr>
         </thead>
         <tbody id="fw-rows"></tbody>
@@ -230,7 +230,7 @@
         <h1>Метрики шлюза</h1>
         <div class="panel-head-actions">
           <span id="metrics-updated" class="dim-cell mono"></span>
-          <button id="metrics-refresh" class="btn btn-ghost" title="Обновить">↻</button>
+          <button id="metrics-refresh" class="btn btn-ghost" title="Обновить" aria-label="Обновить">↻</button>
         </div>
       </div>
 
@@ -378,6 +378,7 @@
     браузере (localStorage), на шлюз не передаётся ничего кроме как в
     заголовке запросов.
   </p>
+  <label class="field-label" for="token-input">Токен доступа</label>
   <input class="mono-input" id="token-input" autocomplete="off" placeholder="вставьте токен">
   <button id="token-save" class="btn btn-primary btn-block">Сохранить</button>
   <button id="token-clear" class="btn btn-ghost btn-block">Очистить</button>

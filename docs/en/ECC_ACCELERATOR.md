@@ -76,6 +76,33 @@ A caveat on documentation versions: the ESP-IDF v6.0 pages show a generic preset
 listing that includes `HARDWARE_ECC` even for the original ESP32, which has no
 such block. Use the 5.x pages, which are tied to a specific build target.
 
+### Indirect confirmation from an independent source
+
+The distinction between the two blocks is confirmed by more than a reading of the
+reference manuals. Espressif's security advisory AR2026-006 reports a flaw in
+signature verification during secure boot and lists the affected chips: H2, C5,
+C61 and P4. The vulnerability concerns ECDSA-based boot, that is, the operation
+of the dedicated signing peripheral.
+
+Neither the C6 nor the C2 appears on that list. Both have an elliptic-curve
+accelerator but no signing peripheral, so the vulnerable path does not exist on
+them. The list of affected chips turns out to be, in effect, a list of those
+whose dedicated signing is implemented in hardware, and the C6's absence from it
+confirms the distinction between the blocks from a direction independent of
+reading capability tables.
+
+### Why the accelerator does not help X25519
+
+The ESP32-C2 datasheet describes the block's capabilities in more detail than the
+C6 description does, and the list explains the measurement: the block supports
+**two curves, P-192 and P-256**, across seven working modes — base point
+verification and multiplication, Jacobian point verification and multiplication.
+
+Curve25519 is not on that list and could not be: it is a Montgomery curve, while
+the block is built for NIST curves in Weierstrass form. Hence the measured
+result — 121.37 ms against 119.33 with the accelerator on and off, that is, no
+difference at all.
+
 ## Method
 
 Measurements are taken with the firmware's built-in microbenchmark
@@ -376,6 +403,10 @@ He also pointed out that the original list of chips carrying the signing
 peripheral was incomplete: there are not two but at least six, and the single gap
 in his own table turned out to be the P4. The list here has been replaced with a
 pointer to the machine-readable source, which will not go stale.
+
+The same discussion also brought the AR2026-006 advisory to light, whose list of
+affected chips yields the indirect confirmation described above. The X25519
+measurement from this work has in turn been cited in his capability table.
 
 From the same discussion came a pointer to the German BSI TR-02102 standard,
 which sets 2030 as the deadline for data in the high-protection category — a

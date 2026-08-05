@@ -434,7 +434,7 @@ the accelerator speeds up ECDSA but not the key exchange:
 
 | Component | ESP32-S3 | ESP32-C6 | "Speed-up" |
 |-----------|----------|----------|------------|
-| Standalone ECDSA signature | 170.2 ms | 22.1 ms | 7.7 × |
+| Standalone ECDSA signature | 170.2 ms | 22.2 ms | 7.7 × |
 | ECDSA part of the handshake (difference of modes) | 1,024.2 ms | 143.2 ms | 7.2 × |
 | ECDHE exchange (subtracted from handshake time) | 530.8 ms | 505.9 ms | 1.05 × |
 

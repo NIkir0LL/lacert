@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"bytes"
+	"crypto/elliptic"
 	"crypto/sha256"
 	"testing"
 )
@@ -285,4 +286,81 @@ func TestFirmwareIntegrityCheckDetectsTamperedFirmware(t *testing.T) {
 
 func sha256Sum(b []byte) [FirmwareHashSize]byte {
 	return sha256.Sum256(b)
+}
+
+// Замена устаревших elliptic.Marshal и elliptic.Unmarshal не должна изменить
+// формат передаваемого ключа: иначе уже зарегистрированные устройства перестанут
+// проходить рукопожатие, а прошивка — разбирать ключ шлюза.
+//
+// Тест сравнивает вывод нового способа с прежним побайтово. Прежний способ здесь
+// вызывается намеренно, ради сверки, и это единственное место, где он остался.
+func TestECDSAPublicKeyWireFormatUnchanged(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		kp, err := GenerateIdentity(SigECDSAP256)
+		if err != nil {
+			t.Fatalf("создание пары ключей: %v", err)
+		}
+		got, err := kp.PublicKeyBytes()
+		if err != nil {
+			t.Fatalf("сериализация ключа: %v", err)
+		}
+
+		want := elliptic.Marshal(elliptic.P256(), kp.ecdsaPub.X, kp.ecdsaPub.Y) //nolint:staticcheck // сверка с прежним форматом
+		if !bytes.Equal(got, want) {
+			t.Fatalf("формат ключа изменился:\n новый %x\n прежний %x", got, want)
+		}
+		if len(got) != 1+2*ecdsaCoordSize {
+			t.Fatalf("ожидалось %d байт несжатой точки, получено %d", 1+2*ecdsaCoordSize, len(got))
+		}
+		if got[0] != 4 {
+			t.Fatalf("ожидался префикс несжатой точки 0x04, получен 0x%02x", got[0])
+		}
+	}
+}
+
+// Проверка подписи должна отвергать публичный ключ, не лежащий на кривой.
+// Без этой проверки открывается путь к атаке на недопустимую кривую: подменив
+// точку, нападающий влияет на результат операций с ней.
+func TestVerifySignatureRejectsInvalidPublicKey(t *testing.T) {
+	kp, err := GenerateIdentity(SigECDSAP256)
+	if err != nil {
+		t.Fatalf("создание пары ключей: %v", err)
+	}
+	pub, _ := kp.PublicKeyBytes()
+	msg := []byte("телеметрия для подписи")
+	sig, err := kp.Sign(msg)
+	if err != nil {
+		t.Fatalf("подпись: %v", err)
+	}
+
+	// Исходный ключ работает.
+	ok, err := VerifySignature(SigECDSAP256, pub, msg, sig)
+	if err != nil || !ok {
+		t.Fatalf("подпись с исходным ключом должна проверяться: ok=%v err=%v", ok, err)
+	}
+
+	cases := map[string][]byte{
+		"точка не на кривой": flipByte(pub, 40),
+		"неверный префикс":   flipByte(pub, 0),
+		"обрезанный ключ":    pub[:len(pub)-1],
+		"пустой ключ":        {},
+		"лишний байт":        append(append([]byte(nil), pub...), 0),
+	}
+	for name, bad := range cases {
+		t.Run(name, func(t *testing.T) {
+			ok, err := VerifySignature(SigECDSAP256, bad, msg, sig)
+			if ok {
+				t.Error("испорченный ключ не должен проходить проверку")
+			}
+			if err == nil {
+				t.Error("испорченный ключ должен давать ошибку разбора")
+			}
+		})
+	}
+}
+
+func flipByte(b []byte, i int) []byte {
+	out := append([]byte(nil), b...)
+	out[i] ^= 0xFF
+	return out
 }

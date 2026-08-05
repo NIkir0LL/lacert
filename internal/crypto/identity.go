@@ -6,6 +6,7 @@
 package crypto
 
 import (
+	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
@@ -13,6 +14,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/cloudflare/circl/kem/mlkem/mlkem1024"
 	"github.com/cloudflare/circl/sign/slhdsa"
@@ -131,12 +133,25 @@ func GenerateIdentity(alg SigAlgorithm) (*IdentityKeyPair, error) {
 	}
 }
 
+// ecdsaCoordSize — размер одной координаты точки P-256 в байтах. Публичный
+// ключ передаётся несжатой точкой: префикс 0x04, затем X и Y по 32 байта.
+const ecdsaCoordSize = 32
+
 // PublicKeyBytes возвращает сериализованный публичный ключ для передачи
 // другой стороне / занесения в базу шлюза при офлайн-регистрации.
 func (kp *IdentityKeyPair) PublicKeyBytes() ([]byte, error) {
 	switch kp.Algorithm {
 	case SigECDSAP256:
-		return elliptic.Marshal(elliptic.P256(), kp.ecdsaPub.X, kp.ecdsaPub.Y), nil
+		// elliptic.Marshal объявлена устаревшей начиная с Go 1.21. Замена через
+		// crypto/ecdh даёт тот же формат — несжатая точка 0x04 || X || Y, 65
+		// байт, — поэтому совместимость с уже зарегистрированными устройствами
+		// и с прошивкой сохраняется. Это проверяется тестом
+		// TestECDSAPublicKeyWireFormatUnchanged.
+		ecdhPub, err := kp.ecdsaPub.ECDH()
+		if err != nil {
+			return nil, fmt.Errorf("convert ecdsa public key: %w", err)
+		}
+		return ecdhPub.Bytes(), nil
 	case SigSLHDSA:
 		return kp.slhPub.MarshalBinary()
 	case SigEd25519:
@@ -176,11 +191,25 @@ func (kp *IdentityKeyPair) Sign(message []byte) ([]byte, error) {
 func VerifySignature(alg SigAlgorithm, pubBytes, message, signature []byte) (bool, error) {
 	switch alg {
 	case SigECDSAP256:
-		x, y := elliptic.Unmarshal(elliptic.P256(), pubBytes)
-		if x == nil {
+		// elliptic.Unmarshal объявлена устаревшей. Разбор идёт через
+		// crypto/ecdh: он выполняет ту же проверку, что и прежняя функция, —
+		// отвергает точку, не лежащую на кривой, и значения неверной длины.
+		// Проверка обязательна: приняв произвольную точку, шлюз открыл бы путь
+		// к атаке на недопустимую кривую.
+		//
+		// Обратного преобразования в ecdsa.PublicKey стандартная библиотека не
+		// предоставляет, поэтому координаты берутся из уже проверенного
+		// представления: Bytes() возвращает канонические 0x04 || X || Y.
+		ecdhPub, err := ecdh.P256().NewPublicKey(pubBytes)
+		if err != nil {
 			return false, errors.New("invalid ecdsa public key bytes")
 		}
-		pub := &ecdsa.PublicKey{Curve: elliptic.P256(), X: x, Y: y}
+		raw := ecdhPub.Bytes()
+		pub := &ecdsa.PublicKey{
+			Curve: elliptic.P256(),
+			X:     new(big.Int).SetBytes(raw[1 : 1+ecdsaCoordSize]),
+			Y:     new(big.Int).SetBytes(raw[1+ecdsaCoordSize:]),
+		}
 		digest := sha256.Sum256(message)
 		return ecdsa.VerifyASN1(pub, digest[:], signature), nil
 
