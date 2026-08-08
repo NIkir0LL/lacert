@@ -17,13 +17,19 @@
   --border-strong: #3a3f4b;
 
   --text: #e8e6e1;
-  --text-dim: #9a9ca5;
-  --text-faint: #6b6e78;
+  /* Три уровня яркости текста. Значения подобраны так, чтобы каждый проходил
+     норму контраста 4.5:1 на самой светлой из подложек (--panel-raised) и при
+     этом уровни оставались различимы между собой. */
+  --text-dim: #a6a8b0;
+  --text-faint: #8a8d99;
 
   --amber: #d98e3b;
   --amber-dim: #8a5e2a;
   --green: #5fb87a;
-  --red: #d9636b;
+  /* Красный несёт состояние в .conn-bad и .status-revoked, поэтому обязан
+     читаться на всех подложках. Прежний #d9636b давал на --panel-raised
+     4.39:1, чуть ниже нормы. */
+  --red: #e0727a;
   --teal: #4fa8c9;
 
   --font-mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, "SF Mono", monospace;
@@ -394,6 +400,9 @@ button, input, textarea, select {
 /* ---------- buttons ---------- */
 
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border-strong);
   background: var(--panel-raised);
   color: var(--text);
@@ -870,3 +879,19 @@ button, input, textarea, select {
 
 .fw-ok { color: var(--ok, #46c17f); }
 .fw-bad { color: var(--danger, #e5534b); font-weight: 600; }
+
+/* Цели нажатия на сенсорных устройствах.
+   Отступов и размера шрифта хватало примерно на 31 пиксель по высоте, тогда как
+   палец уверенно попадает по цели от 44. Правило намеренно ограничено запросом
+   pointer: coarse, а не шириной экрана: мышью по цели в 31 пиксель попадают
+   без труда, и раздувать ряды кнопок на настольной машине незачем. Маленькие
+   кнопки (.btn-sm) стоят рядами — выбор устройств, диапазоны времени, — и на
+   мыши должны остаться компактными.
+   Ширину не задаём: кнопки с короткими подписями растянулись бы без нужды. */
+@media (pointer: coarse) {
+  .btn,
+  .nav-btn,
+  .dev-chip {
+    min-height: 44px;
+  }
+}
