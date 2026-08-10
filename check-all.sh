@@ -131,7 +131,22 @@ print(f"  \033[1;32m✓\033[0m ссылок проверено {tot}, битых
 PY
 
 # ─────────────────────────────────────────────────────────────
-say "11. Гигиена репозитория"
+say "11. Сверка документации с кодом"
+if [ -f check-docs.sh ]; then
+  if bash check-docs.sh >/tmp/lacert-check-docs.log 2>&1; then
+    ok "документация сходится с кодом"
+  else
+    bad "документация разошлась с кодом"
+    sed 's/^/    /' /tmp/lacert-check-docs.log | grep -E '✗|!' | head -20
+    inf "полный вывод: bash check-docs.sh"
+    FAILED=1
+  fi
+else
+  warn "check-docs.sh не найден, сверка пропущена"
+fi
+
+# ─────────────────────────────────────────────────────────────
+say "12. Гигиена репозитория"
 n=$(grep -rniE 'диплом|магистр|отчёт по практике' --include='*.md' --include='*.go' --include='*.c' . 2>/dev/null \
     | grep -v vendor | grep -v 'firmware/components' | wc -l)
 [ "$n" = "0" ] && ok "учебных упоминаний нет" || { bad "учебных упоминаний: $n"; }

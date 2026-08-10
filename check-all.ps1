@@ -121,7 +121,32 @@ foreach ($lang in @("ru","en")) {
 if ($broken -eq 0) { Ok "ссылок проверено $total, битых 0" } else { $failed = 1 }
 
 # ─────────────────────────────────────────────────────────────
-Say "11. Гигиена репозитория"
+Say "11. Сверка документации с кодом"
+# Само средство написано на bash и python3 — на Windows оно запускается, если
+# установлены оба. Отсутствие bash не считается ошибкой прогона: остальные
+# проверки от него не зависят, а сверка выполнится на другой машине или в
+# автоматических проверках.
+if (Test-Path "check-docs.sh") {
+  $bash = Get-Command bash -ErrorAction SilentlyContinue
+  if ($bash) {
+    $out = & bash check-docs.sh 2>&1
+    if ($LASTEXITCODE -eq 0) {
+      Ok "документация сходится с кодом"
+    } else {
+      Bad "документация разошлась с кодом"
+      $out | Select-String -Pattern '✗|!' | Select-Object -First 20 | ForEach-Object { Inf $_.ToString().Trim() }
+      Inf "полный вывод: bash check-docs.sh"
+      $failed = 1
+    }
+  } else {
+    Warn "bash не найден, сверка документации пропущена"
+  }
+} else {
+  Warn "check-docs.sh не найден, сверка пропущена"
+}
+
+# ─────────────────────────────────────────────────────────────
+Say "12. Гигиена репозитория"
 $acad = Select-String -Path "*.md","docs\ru\*.md","docs\en\*.md","internal\**\*.go" `
         -Pattern 'диплом|магистр|отчёт по практике' -ErrorAction SilentlyContinue
 if (-not $acad) { Ok "учебных упоминаний нет" } else { Bad "учебных упоминаний: $($acad.Count)" }

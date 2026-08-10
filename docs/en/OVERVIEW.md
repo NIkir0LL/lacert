@@ -232,6 +232,25 @@ go test ./...         # unit tests (14 packages)
 go test -race ./...   # race detector
 ```
 
+All of the above at once, together with the benchmarks and repository checks:
+
+```bash
+bash check-all.sh     # or check-all.ps1 on Windows
+```
+
+Separately, a consistency check between the documentation and the code. It
+answers one question: has what the documents say drifted from what the program
+does — environment variables, frame codes across three sources at once, limits,
+reference measurements, numeric parity between the two locales, and references
+to file paths.
+
+```bash
+bash check-docs.sh
+```
+
+It returns a non-zero code on a discrepancy, so it suits automated checks as
+well. It runs as one section of `check-all.sh`.
+
 An end-to-end stress test of five defense mechanisms (forged signature, replay,
 stale challenge, wrong key, corrupted frame) lives in
 `internal/gateway/stress_test.go` and `cmd/stresstest/`.
