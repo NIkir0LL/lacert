@@ -302,3 +302,96 @@ func TestMemStoreTrimming(t *testing.T) {
 		t.Fatalf("LatestTelemetry вернул не последнюю запись: %+v", latest)
 	}
 }
+
+// Reregister заменяет ключи, сохраняя историю и дату первой регистрации.
+func TestMemStore_ReregisterKeepsHistory(t *testing.T) {
+	s := New()
+	original := time.Now().Add(-24 * time.Hour)
+	rec := &DeviceRecord{
+		DeviceID:     "dev-re",
+		IdentityPub:  []byte("старый ключ подписи"),
+		KEMPub:       []byte("старый ключ обмена"),
+		FirmwareHash: []byte("старый хеш"),
+		CreatedAt:    original,
+	}
+	if err := s.Register(rec); err != nil {
+		t.Fatalf("регистрация: %v", err)
+	}
+	if err := s.LogEvent("dev-re", "проверка", "событие до замены"); err != nil {
+		t.Fatalf("запись события: %v", err)
+	}
+
+	err := s.Reregister(&DeviceRecord{
+		DeviceID:     "dev-re",
+		IdentityPub:  []byte("новый ключ подписи"),
+		KEMPub:       []byte("новый ключ обмена"),
+		FirmwareHash: []byte("новый хеш"),
+	})
+	if err != nil {
+		t.Fatalf("перерегистрация: %v", err)
+	}
+
+	got, err := s.Get("dev-re")
+	if err != nil {
+		t.Fatalf("получение: %v", err)
+	}
+	if string(got.IdentityPub) != "новый ключ подписи" {
+		t.Errorf("ключ подписи не сменился: %q", got.IdentityPub)
+	}
+	if string(got.KEMPub) != "новый ключ обмена" {
+		t.Errorf("ключ обмена не сменился: %q", got.KEMPub)
+	}
+	if !got.CreatedAt.Equal(original) {
+		t.Errorf("дата первой регистрации должна сохраняться: было %v, стало %v", original, got.CreatedAt)
+	}
+
+	events, err := s.RecentEvents("dev-re", 0)
+	if err != nil {
+		t.Fatalf("чтение журнала: %v", err)
+	}
+	found := false
+	for _, e := range events {
+		if e.Detail == "событие до замены" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("журнал событий должен сохраняться при замене ключей")
+	}
+}
+
+// Состояние отзыва при замене ключей переносится: иначе отозванное за
+// неудачную проверку прошивки устройство молча вернулось бы в строй.
+func TestMemStore_ReregisterKeepsRevocation(t *testing.T) {
+	s := New()
+	if err := s.Register(&DeviceRecord{DeviceID: "dev-rev", IdentityPub: []byte("к")}); err != nil {
+		t.Fatalf("регистрация: %v", err)
+	}
+	if err := s.Revoke("dev-rev", "подмена прошивки"); err != nil {
+		t.Fatalf("отзыв: %v", err)
+	}
+
+	if err := s.Reregister(&DeviceRecord{DeviceID: "dev-rev", IdentityPub: []byte("новый")}); err != nil {
+		t.Fatalf("перерегистрация: %v", err)
+	}
+
+	// Get отдаёт запись отозванного устройства вместе с ошибкой.
+	got, err := s.Get("dev-rev")
+	if !errorsIsRevoked(err) {
+		t.Fatalf("устройство должно остаться отозванным, получено: %v", err)
+	}
+	if !got.Revoked || got.RevokedReason != "подмена прошивки" {
+		t.Errorf("причина отзыва должна сохраняться: %+v", got)
+	}
+}
+
+// Перерегистрация неизвестного устройства — ошибка, а не скрытое создание.
+func TestMemStore_ReregisterUnknownFails(t *testing.T) {
+	s := New()
+	err := s.Reregister(&DeviceRecord{DeviceID: "нет такого", IdentityPub: []byte("к")})
+	if err != ErrDeviceNotFound {
+		t.Fatalf("ожидалась ошибка отсутствия устройства, получено: %v", err)
+	}
+}
+
+func errorsIsRevoked(err error) bool { return err == ErrDeviceRevoked }

@@ -126,12 +126,39 @@ If `LACERT_ADMIN_TOKEN` is set, these routes require the header
 | POST | `/api/v1/devices` | enroll a device |
 | GET | `/api/v1/devices/{id}` | device details |
 | GET | `/api/v1/devices/{id}/events` | device event log |
+| PUT | `/api/v1/devices/{id}` | re-enrol: replace the keys of an existing device |
+| DELETE | `/api/v1/devices/{id}` | remove the record entirely, history included |
 | POST | `/api/v1/devices/{id}/revoke` | revoke a device |
 | GET | `/api/v1/telemetry` | telemetry readings |
 | GET | `/api/v1/rotations` | key-rotation log |
 | GET | `/api/v1/firmware-checks` | firmware integrity check log (`?device_id=`, `?limit=`) |
 | GET | `/api/v1/metrics` | gateway counters (see below) |
 
+### Re-enrolment and deletion
+
+Three actions on a device record mean different things, and they are worth
+keeping apart.
+
+**Revocation** is a decision about trust. The record stays in the registry along
+with the reason, the device remains visible to the operator, and it no longer
+completes a handshake. This is what happens when a firmware integrity check
+fails or a device goes missing.
+
+**Re-enrolment** replaces the keys of a device that lost them: the board's
+memory was erased, the board was swapped while keeping its identifier, or the
+firmware was reflashed and generated a fresh pair. History is preserved — the
+event log, the accumulated telemetry and the date of first enrolment all stay.
+An active session is closed, since it runs on the old key.
+
+A revoked device cannot be re-enrolled. Replacing keys does not lift a
+revocation, and silently returning a board revoked on suspicion of firmware
+tampering would be wrong. If that is genuinely intended, the record is deleted
+first.
+
+**Deletion** is housekeeping. The record disappears together with its log and
+telemetry, and the identifier becomes free again. This is for records created by
+mistake or made for testing. For a device that has been in service, revocation is
+usually the better fit: it leaves a trace.
 ### Enrolling a device (POST /devices body)
 
 ```json

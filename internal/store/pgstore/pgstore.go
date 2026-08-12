@@ -200,6 +200,27 @@ func Open(dsn string) (*Store, error) {
 	return &Store{db: db}, nil
 }
 
+// Reregister заменяет ключи и эталонный хеш прошивки у существующего
+// устройства. Журнал событий и телеметрия лежат в отдельных таблицах и не
+// затрагиваются, дата первой регистрации и состояние отзыва сохраняются.
+//
+// Обновление идёт по перечню полей, а не через Save целиком: иначе GORM
+// затёр бы состояние отзыва нулевыми значениями из переданной записи.
+func (s *Store) Reregister(rec *store.DeviceRecord) error {
+	var existing deviceRow
+	if err := s.db.Where("device_id = ?", rec.DeviceID).First(&existing).Error; err != nil {
+		return store.ErrDeviceNotFound
+	}
+	return s.db.Model(&deviceRow{}).
+		Where("device_id = ?", rec.DeviceID).
+		Updates(map[string]any{
+			"sig_algorithm": int(rec.SigAlgorithm),
+			"identity_pub":  rec.IdentityPub,
+			"kem_pub":       rec.KEMPub,
+			"firmware_hash": rec.FirmwareHash,
+		}).Error
+}
+
 func (s *Store) Register(rec *store.DeviceRecord) error {
 	row := deviceRow{
 		DeviceID:     rec.DeviceID,

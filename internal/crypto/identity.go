@@ -184,6 +184,53 @@ func (kp *IdentityKeyPair) Sign(message []byte) ([]byte, error) {
 	}
 }
 
+// ValidateIdentityPublicKey проверяет, что переданные байты — корректный
+// публичный ключ подписи для указанного алгоритма.
+//
+// Нужна при офлайн-регистрации: там ключ вводится вручную с последовательного
+// порта устройства, и опечатка либо обрезанная при копировании строка должны
+// отвергаться сразу. Без такой проверки устройство регистрировалось бы
+// успешно, а отказывало позже, на первом рукопожатии, где связь с ошибкой
+// ввода уже не видна.
+//
+// Проверяется только форма ключа: что точка лежит на кривой для ECDSA, что
+// длина верна для Ed25519, что разбор проходит для SLH-DSA. Владение
+// соответствующим закрытым ключом здесь не проверяется — это делает
+// рукопожатие.
+func ValidateIdentityPublicKey(alg SigAlgorithm, pubBytes []byte) error {
+	if len(pubBytes) == 0 {
+		return errors.New("public key is empty")
+	}
+	switch alg {
+	case SigECDSAP256:
+		// Та же проверка, что и при разборе в VerifySignature: точка не на
+		// кривой отвергается, иначе открылся бы путь к атаке на недопустимую
+		// кривую.
+		if _, err := ecdh.P256().NewPublicKey(pubBytes); err != nil {
+			return fmt.Errorf("invalid ecdsa public key: %w", err)
+		}
+		return nil
+
+	case SigSLHDSA:
+		var pub slhdsa.PublicKey
+		pub.ID = slhdsaID
+		if err := pub.UnmarshalBinary(pubBytes); err != nil {
+			return fmt.Errorf("invalid slh-dsa public key: %w", err)
+		}
+		return nil
+
+	case SigEd25519:
+		if len(pubBytes) != ed25519.PublicKeySize {
+			return fmt.Errorf("invalid ed25519 public key size: %d, expected %d",
+				len(pubBytes), ed25519.PublicKeySize)
+		}
+		return nil
+
+	default:
+		return errors.New("unknown signature algorithm")
+	}
+}
+
 // VerifySignature проверяет подпись по сериализованному публичному ключу.
 // Используется шлюзом для проверки Msg3 рукопожатия и ответа на проверку
 // целостности прошивки, и устройством — для проверки, что оно говорит

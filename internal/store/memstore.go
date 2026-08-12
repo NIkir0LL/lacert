@@ -55,6 +55,27 @@ func New() *MemStore {
 	return &MemStore{devices: make(map[string]*DeviceRecord)}
 }
 
+// Reregister заменяет ключи существующего устройства. История сохраняется:
+// журнал событий и телеметрия лежат в отдельных отображениях и не трогаются,
+// дата первой регистрации переносится из прежней записи.
+func (s *MemStore) Reregister(rec *DeviceRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, exists := s.devices[rec.DeviceID]
+	if !exists {
+		return ErrDeviceNotFound
+	}
+	cp := *rec
+	cp.CreatedAt = old.CreatedAt
+	// Состояние отзыва переносится намеренно: смена ключей не должна молча
+	// снимать отзыв, иначе отозванное за неудачную проверку прошивки
+	// устройство возвращалось бы в строй незаметно для оператора.
+	cp.Revoked = old.Revoked
+	cp.RevokedReason = old.RevokedReason
+	s.devices[rec.DeviceID] = &cp
+	return nil
+}
+
 func (s *MemStore) Register(rec *DeviceRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

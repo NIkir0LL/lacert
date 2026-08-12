@@ -384,3 +384,120 @@ func TestPGStore_EventsByType(t *testing.T) {
 		t.Fatalf("лимит не сработал: %d записей вместо 1", len(limited))
 	}
 }
+
+// Reregister заменяет ключи, сохраняя историю и состояние отзыва.
+//
+// Реализация для PostgreSQL сложнее, чем для памяти: обновление идёт по
+// перечню полей, а не сохранением записи целиком. Иначе GORM затёр бы
+// состояние отзыва нулевыми значениями из переданной записи, и отозванное
+// устройство молча вернулось бы в строй.
+func TestPGStore_Reregister(t *testing.T) {
+	s := openTestStore(t)
+
+	rec := &store.DeviceRecord{
+		DeviceID:     "pg-re-1",
+		SigAlgorithm: crypto.SigECDSAP256,
+		IdentityPub:  []byte("старый ключ подписи"),
+		KEMPub:       []byte("старый ключ обмена"),
+		FirmwareHash: []byte("старый хеш"),
+	}
+	if err := s.Register(rec); err != nil {
+		t.Fatalf("регистрация: %v", err)
+	}
+	if err := s.LogEvent("pg-re-1", "проверка", "событие до замены"); err != nil {
+		t.Fatalf("запись события: %v", err)
+	}
+	before, err := s.Get("pg-re-1")
+	if err != nil {
+		t.Fatalf("получение: %v", err)
+	}
+
+	err = s.Reregister(&store.DeviceRecord{
+		DeviceID:     "pg-re-1",
+		SigAlgorithm: crypto.SigECDSAP256,
+		IdentityPub:  []byte("новый ключ подписи"),
+		KEMPub:       []byte("новый ключ обмена"),
+		FirmwareHash: []byte("новый хеш"),
+	})
+	if err != nil {
+		t.Fatalf("перерегистрация: %v", err)
+	}
+
+	after, err := s.Get("pg-re-1")
+	if err != nil {
+		t.Fatalf("получение после замены: %v", err)
+	}
+	if string(after.IdentityPub) != "новый ключ подписи" {
+		t.Errorf("ключ подписи не сменился: %q", after.IdentityPub)
+	}
+	if string(after.KEMPub) != "новый ключ обмена" {
+		t.Errorf("ключ обмена не сменился: %q", after.KEMPub)
+	}
+	if !after.CreatedAt.Equal(before.CreatedAt) {
+		t.Errorf("дата первой регистрации должна сохраняться: было %v, стало %v",
+			before.CreatedAt, after.CreatedAt)
+	}
+
+	events, err := s.RecentEvents("pg-re-1", 0)
+	if err != nil {
+		t.Fatalf("чтение журнала: %v", err)
+	}
+	found := false
+	for _, e := range events {
+		if e.Detail == "событие до замены" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("журнал событий должен сохраняться при замене ключей")
+	}
+}
+
+// Состояние отзыва при замене ключей не должно затираться.
+func TestPGStore_ReregisterKeepsRevocation(t *testing.T) {
+	s := openTestStore(t)
+
+	if err := s.Register(&store.DeviceRecord{
+		DeviceID:     "pg-re-rev",
+		SigAlgorithm: crypto.SigECDSAP256,
+		IdentityPub:  []byte("ключ"),
+		KEMPub:       []byte("ключ"),
+		FirmwareHash: []byte("хеш"),
+	}); err != nil {
+		t.Fatalf("регистрация: %v", err)
+	}
+	if err := s.Revoke("pg-re-rev", "подмена прошивки"); err != nil {
+		t.Fatalf("отзыв: %v", err)
+	}
+
+	if err := s.Reregister(&store.DeviceRecord{
+		DeviceID:     "pg-re-rev",
+		SigAlgorithm: crypto.SigECDSAP256,
+		IdentityPub:  []byte("новый"),
+		KEMPub:       []byte("новый"),
+		FirmwareHash: []byte("новый"),
+	}); err != nil {
+		t.Fatalf("перерегистрация: %v", err)
+	}
+
+	got, err := s.Get("pg-re-rev")
+	if err != store.ErrDeviceRevoked {
+		t.Fatalf("устройство должно остаться отозванным, получено: %v", err)
+	}
+	if !got.Revoked || got.RevokedReason != "подмена прошивки" {
+		t.Errorf("причина отзыва должна сохраняться: revoked=%v reason=%q",
+			got.Revoked, got.RevokedReason)
+	}
+}
+
+// Перерегистрация неизвестного устройства — ошибка, а не скрытое создание.
+func TestPGStore_ReregisterUnknownFails(t *testing.T) {
+	s := openTestStore(t)
+	err := s.Reregister(&store.DeviceRecord{
+		DeviceID:    "pg-never-existed",
+		IdentityPub: []byte("ключ"),
+	})
+	if err != store.ErrDeviceNotFound {
+		t.Fatalf("ожидалась ошибка отсутствия устройства, получено: %v", err)
+	}
+}

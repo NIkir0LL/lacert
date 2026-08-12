@@ -82,8 +82,12 @@ func New(gw *gateway.Gateway, opts Options) *Server {
 	// пользователя мог обращаться к API шлюза.
 	if len(opts.AllowedOrigins) > 0 {
 		r.Use(cors.Handler(cors.Options{
-			AllowedOrigins:   opts.AllowedOrigins,
-			AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+			AllowedOrigins: opts.AllowedOrigins,
+			// PUT и DELETE нужны для перерегистрации и удаления устройства.
+			// Без них браузер отклонил бы такой запрос ещё до отправки, и
+			// кросс-доменный дашборд не смог бы этими действиями
+			// воспользоваться.
+			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 			AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
 			AllowCredentials: false,
 			MaxAge:           300,
@@ -113,6 +117,8 @@ func New(gw *gateway.Gateway, opts Options) *Server {
 			r.Post("/", s.registerDevice)
 			r.Get("/{deviceID}", s.getDevice)
 			r.Get("/{deviceID}/events", s.getDeviceEvents)
+			r.Put("/{deviceID}", s.reregisterDevice)
+			r.Delete("/{deviceID}", s.deleteDevice)
 			r.Post("/{deviceID}/revoke", s.revokeDevice)
 		})
 		r.Get("/telemetry", s.getTelemetry)
@@ -351,6 +357,70 @@ func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
 // администратор переносит данные, считанные с Serial-порта устройства, в
 // этот эндпоинт. Контрольная сумма проверяется так же, как и в
 // internal/regtool, чтобы исключить опечатки при ручном переносе.
+// reregisterDevice заменяет ключи уже зарегистрированного устройства.
+//
+// Отдельный метод, а не повторный POST: создание и замена — разные действия с
+// разными последствиями, и путать их опасно. Повторный POST по-прежнему
+// отвергается, поэтому случайно затереть ключи работающего устройства
+// нельзя — для этого нужно обратиться именно сюда.
+func (s *Server) reregisterDevice(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRegisterBodyBytes)
+
+	var req registerDeviceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	// Идентификатор в пути и в теле должен совпадать. Подменять одно другим
+	// нельзя: контрольная сумма считается в том числе по идентификатору, и
+	// после подмены перестала бы сходиться. А молча брать значение из тела
+	// значило бы, что обращение по одному адресу меняет ключи у другого
+	// устройства.
+	if pathID := chi.URLParam(r, "deviceID"); pathID != req.DeviceID {
+		writeError(w, http.StatusBadRequest,
+			fmt.Errorf("device_id in body (%q) does not match the one in path (%q)",
+				req.DeviceID, pathID))
+		return
+	}
+
+	serial, err := req.toSerialOutput()
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	sigAlg, err := parseSigAlgorithm(req.SigAlgorithm)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	if err := s.GW.ReregisterDevice(serial, sigAlg); err != nil {
+		if errors.Is(err, store.ErrDeviceNotFound) {
+			writeError(w, http.StatusNotFound, err)
+			return
+		}
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+// deleteDevice полностью убирает устройство из реестра вместе с историей.
+//
+// Не путать с отзывом: отозванное устройство остаётся видно оператору вместе
+// с причиной, удалённое исчезает бесследно.
+func (s *Server) deleteDevice(w http.ResponseWriter, r *http.Request) {
+	deviceID := chi.URLParam(r, "deviceID")
+	if err := s.GW.DeleteDevice(deviceID); err != nil {
+		if errors.Is(err, store.ErrDeviceNotFound) {
+			writeError(w, http.StatusNotFound, err)
+			return
+		}
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) registerDevice(w http.ResponseWriter, r *http.Request) {
 	// Ограничение размера тела: самая большая легитимная регистрация — это
 	// KEM-ключ (1568 байт) в hex плюс подпись и служебные поля, то есть

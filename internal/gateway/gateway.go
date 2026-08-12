@@ -331,6 +331,88 @@ func validateDeviceID(id string) error {
 // internal/crypto/firmware.go); serial.Checksum проверяется, чтобы
 // исключить опечатки при переносе (подлинность самого устройства будет
 // дополнительно подтверждена позже, на рукопожатии).
+// ReregisterDevice заменяет ключи уже зарегистрированного устройства.
+//
+// Нужен, когда устройство свои ключи потеряло: очистили память платы,
+// заменили плату с сохранением идентификатора, перепрошили с генерацией новой
+// пары. Прежде такое устройство оставалось в реестре навсегда непригодным —
+// зарегистрировать заново мешала запись с прежним идентификатором, а
+// рукопожатие не проходило, потому что ключ у платы уже другой.
+//
+// Отозванное устройство перерегистрировать нельзя. Смена ключей не снимает
+// отзыв, и делать вид, что устройство снова в строю, было бы опасно: отзыв
+// ставится в том числе за неудачную проверку целостности прошивки, то есть по
+// подозрению в подмене. Если оператор действительно хочет вернуть такое
+// устройство, ему нужно удалить запись и завести её заново — действие
+// осознанное и заметное.
+//
+// Действующая сессия закрывается: она работает на прежнем ключе, и оставлять
+// её после смены ключей значило бы держать соединение, которое реестру уже не
+// соответствует.
+func (g *Gateway) ReregisterDevice(serial regtool.SerialOutput, sigAlg crypto.SigAlgorithm) error {
+	if err := validateDeviceID(serial.DeviceID); err != nil {
+		return err
+	}
+	if !regtool.VerifyChecksum(serial) {
+		return errors.New("checksum mismatch: data may have been mistyped during manual transfer")
+	}
+	if _, err := crypto.UnpackKEMPublicKey(serial.KEMPub); err != nil {
+		return fmt.Errorf("invalid kem_pub: %w", err)
+	}
+	if err := crypto.ValidateIdentityPublicKey(sigAlg, serial.IdentityPub); err != nil {
+		return fmt.Errorf("invalid identity_pub: %w", err)
+	}
+
+	// Store.Get отдаёт запись отозванного устройства вместе с ErrDeviceRevoked,
+	// поэтому отзыв распознаётся здесь, а не отдельной проверкой поля: своя
+	// проверка оказалась бы недостижимой, потому что ошибка приходит раньше.
+	rec, err := g.Store.Get(serial.DeviceID)
+	if errors.Is(err, store.ErrDeviceRevoked) {
+		return fmt.Errorf("устройство отозвано (%s): чтобы завести его заново, сначала удалите запись",
+			rec.RevokedReason)
+	}
+	if err != nil {
+		return err
+	}
+
+	updated := &store.DeviceRecord{
+		DeviceID:     serial.DeviceID,
+		SigAlgorithm: sigAlg,
+		IdentityPub:  serial.IdentityPub,
+		KEMPub:       serial.KEMPub,
+		FirmwareHash: serial.FirmwareHash[:],
+	}
+	if err := g.Store.Reregister(updated); err != nil {
+		return err
+	}
+	g.CloseSession(serial.DeviceID)
+	_ = g.Store.LogEvent(serial.DeviceID, "reregistered",
+		"ключи заменены при повторной офлайн-регистрации, контрольная сумма проверена")
+	return nil
+}
+
+// DeleteDevice полностью убирает устройство из реестра вместе с его журналом
+// событий и телеметрией.
+//
+// Отличается от отзыва: отозванное устройство остаётся в реестре и видно
+// оператору вместе с причиной, а удалённое исчезает бесследно. Отзыв — это
+// решение о недоверии, удаление — уборка. Для устройства, побывавшего в
+// работе, обычно нужен отзыв, а удаление — для записей, заведённых по ошибке
+// или созданных для проверок.
+//
+// Действующая сессия закрывается: держать соединение с устройством, которого
+// в реестре больше нет, незачем.
+func (g *Gateway) DeleteDevice(deviceID string) error {
+	// Отозванное устройство удалять можно и нужно — именно так оператор
+	// освобождает идентификатор для повторной регистрации. Поэтому
+	// ErrDeviceRevoked здесь не препятствие, в отличие от ErrDeviceNotFound.
+	if _, err := g.Store.Get(deviceID); err != nil && !errors.Is(err, store.ErrDeviceRevoked) {
+		return err
+	}
+	g.CloseSession(deviceID)
+	return g.Store.Delete(deviceID)
+}
+
 func (g *Gateway) RegisterDevice(serial regtool.SerialOutput, sigAlg crypto.SigAlgorithm) error {
 	if err := validateDeviceID(serial.DeviceID); err != nil {
 		return err
@@ -348,8 +430,15 @@ func (g *Gateway) RegisterDevice(serial regtool.SerialOutput, sigAlg crypto.SigA
 	if _, err := crypto.UnpackKEMPublicKey(serial.KEMPub); err != nil {
 		return fmt.Errorf("invalid kem_pub: %w", err)
 	}
+	// Ключ подписи проверяется по тем же соображениям, что и KEM-ключ выше.
+	// Прежде здесь стояла лишь проверка на непустоту, и устройство с
+	// испорченным ключом подписи регистрировалось успешно, а отказывало позже,
+	// на рукопожатии — там, где связь с ошибкой ввода уже не видна.
 	if len(serial.IdentityPub) == 0 {
 		return errors.New("identity_pub must not be empty")
+	}
+	if err := crypto.ValidateIdentityPublicKey(sigAlg, serial.IdentityPub); err != nil {
+		return fmt.Errorf("invalid identity_pub: %w", err)
 	}
 
 	rec := &store.DeviceRecord{
