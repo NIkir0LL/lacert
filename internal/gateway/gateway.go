@@ -610,6 +610,19 @@ func (g *Gateway) GatewayKEMPublicKey() *mlkem1024.PublicKey {
 // 3. Непрерывная ротация ключей
 // ---------------------------------------------------------------------------
 
+// ControlKey отдаёт действующий сеансовый ключ устройства для вычисления
+// метки подлинности служебных кадров.
+//
+// Ключ берётся до применения ротации: она вступает в силу только после
+// подтверждения, и обе стороны должны считать метку одним и тем же ключом.
+func (g *Gateway) ControlKey(deviceID string) ([32]byte, error) {
+	sess, err := g.session(deviceID)
+	if err != nil {
+		return [32]byte{}, err
+	}
+	return sess.CurrentKey()
+}
+
 func (g *Gateway) session(deviceID string) (*crypto.Session, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()

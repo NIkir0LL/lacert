@@ -25,6 +25,27 @@ typedef struct {
 lacert_err_t lacert_blake3(const uint8_t **parts, const size_t *lens,
                            size_t count, uint8_t out[32]);
 
+// --- Метка подлинности служебных кадров ---
+//
+// Вычисляет BLAKE3(сеансовый ключ || тип кадра || номер шага || содержимое ||
+// разделитель) и берёт первые LACERT_CONTROL_TAG_SIZE байт.
+//
+// Зачем каждая часть: ключ — без него метку не вычислить; тип кадра — иначе
+// метку от подтверждения можно переставить на другой кадр; номер шага —
+// привязывает метку к конкретному шагу ротации; содержимое — защищает сами
+// данные.
+lacert_err_t lacert_control_tag(const uint8_t session_key[32],
+                                uint8_t frame_type, uint64_t iteration,
+                                const uint8_t *body, size_t body_len,
+                                uint8_t out[LACERT_CONTROL_TAG_SIZE]);
+
+// Проверяет метку служебного кадра. Сравнение за постоянное время: иначе по
+// времени ответа метку можно было бы подбирать побайтово.
+lacert_err_t lacert_verify_control_tag(const uint8_t session_key[32],
+                                       uint8_t frame_type, uint64_t iteration,
+                                       const uint8_t *body, size_t body_len,
+                                       const uint8_t *tag);
+
 // --- SHA-256 ---
 lacert_err_t lacert_sha256(const uint8_t *data, size_t len, uint8_t out[32]);
 

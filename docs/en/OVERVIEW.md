@@ -108,9 +108,12 @@ so its authenticity is not established by the protocol — trust in it comes fro
 the deployment conditions rather than from cryptography. On a network where an
 active man-in-the-middle is possible, that is not enough.
 
-**Control frames carry no signature.** The key-rotation and error frames
-(types 8, 9 and 10) are protected only by travelling over an already encrypted
-channel. They have no signature or MAC of their own.
+**The error frame is unprotected.** Key-rotation frames (types 9 and 10) carry
+an authentication tag derived from the session key, so they cannot be forged.
+The error frame (type 8) carries no tag: it is sent among other things when a
+handshake is refused, at which point neither side has a session key yet. Forging
+one only drops the connection, which is no more than cutting it outright, but
+its contents cannot be relied upon.
 
 **The embedded MQTT broker carries decrypted telemetry.** Connecting to it
 requires a username and password, a subscriber may only read device topics, and

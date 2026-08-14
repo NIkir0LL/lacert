@@ -126,8 +126,14 @@ func (c *Client) ForceAtomicRotation() error {
 	if err != nil {
 		return fmt.Errorf("initiate atomic rotation: %w", err)
 	}
+	// Ключ берётся до отправки: ротация вступит в силу только после
+	// подтверждения от шлюза, и обе стороны считают метку одним ключом.
+	key, err := c.Dev.ControlKey()
+	if err != nil {
+		return fmt.Errorf("session key for control tag: %w", err)
+	}
 	c.mu.Lock()
-	err = wire.WriteFrame(c.conn, wire.TypeRotationV2, wire.EncodeRotationV2(rotMsg))
+	err = wire.WriteFrame(c.conn, wire.TypeRotationV2, wire.EncodeRotationV2(rotMsg, key[:]))
 	c.mu.Unlock()
 	if err != nil {
 		return fmt.Errorf("send atomic rotation: %w", err)
@@ -149,8 +155,14 @@ func (c *Client) RotateIfNeededAtomic() (rotated bool, err error) {
 	if err != nil {
 		return false, fmt.Errorf("initiate atomic rotation: %w", err)
 	}
+	// Ключ берётся до отправки: ротация вступит в силу только после
+	// подтверждения от шлюза, и обе стороны считают метку одним ключом.
+	key, err := c.Dev.ControlKey()
+	if err != nil {
+		return false, fmt.Errorf("session key for control tag: %w", err)
+	}
 	c.mu.Lock()
-	err = wire.WriteFrame(c.conn, wire.TypeRotationV2, wire.EncodeRotationV2(rotMsg))
+	err = wire.WriteFrame(c.conn, wire.TypeRotationV2, wire.EncodeRotationV2(rotMsg, key[:]))
 	c.mu.Unlock()
 	if err != nil {
 		return false, fmt.Errorf("send atomic rotation: %w", err)
@@ -186,7 +198,17 @@ func (c *Client) Listen() error {
 
 		case wire.TypeRotationV2:
 			// Шлюз инициировал атомарную ротацию: применяем и отвечаем ACK.
-			rotMsg, err := wire.DecodeRotationV2(payload)
+			//
+			// Ключ берётся ДО применения ротации и используется дважды: для
+			// проверки метки пришедшего кадра и для метки подтверждения.
+			// После применения ключ станет новым, а шлюз проверит метку
+			// прежним — поэтому порядок здесь существенен.
+			key, err := c.Dev.ControlKey()
+			if err != nil {
+				c.Logger.Warn("нет сеансового ключа для проверки метки", "err", err)
+				continue
+			}
+			rotMsg, err := wire.DecodeRotationV2(payload, key[:])
 			if err != nil {
 				c.Logger.Warn("не удалось декодировать атомарную ротацию от шлюза", "err", err)
 				continue
@@ -197,7 +219,7 @@ func (c *Client) Listen() error {
 				continue
 			}
 			c.mu.Lock()
-			err = wire.WriteFrame(c.conn, wire.TypeRotationAck, wire.EncodeRotationAck(ack))
+			err = wire.WriteFrame(c.conn, wire.TypeRotationAck, wire.EncodeRotationAck(ack, key[:]))
 			c.mu.Unlock()
 			if err != nil {
 				c.Logger.Warn("не удалось отправить ACK ротации", "err", err)
@@ -208,7 +230,13 @@ func (c *Client) Listen() error {
 
 		case wire.TypeRotationAck:
 			// Шлюз подтвердил ротацию, инициированную устройством: коммитим.
-			ack, err := wire.DecodeRotationAck(payload)
+			// Ключ ещё прежний — ротация применится ниже, после проверки.
+			key, err := c.Dev.ControlKey()
+			if err != nil {
+				c.Logger.Warn("нет сеансового ключа для проверки метки", "err", err)
+				continue
+			}
+			ack, err := wire.DecodeRotationAck(payload, key[:])
 			if err != nil {
 				c.Logger.Warn("не удалось декодировать ACK ротации от шлюза", "err", err)
 				continue

@@ -411,7 +411,16 @@ func (s *Server) serveSession(conn net.Conn, entry *connEntry, deviceID string) 
 			// Устройство инициировало атомарную ротацию: применяем и отвечаем
 			// подтверждением (ACK). Ответ отправляется в рамках ioMu, чтобы не
 			// перемешаться с конкурентной записью (например, challenge прошивки).
-			rotMsg, err := wire.DecodeRotationV2(payload)
+			// Ключ берётся ДО применения ротации и служит дважды: для
+			// проверки метки пришедшего кадра и для метки подтверждения.
+			// После применения ключ станет новым, а устройство проверит
+			// метку прежним.
+			key, err := s.GW.ControlKey(deviceID)
+			if err != nil {
+				s.Logger.Warn("нет сеансового ключа для проверки метки", "device_id", deviceID, "err", err)
+				continue
+			}
+			rotMsg, err := wire.DecodeRotationV2(payload, key[:])
 			if err != nil {
 				s.Logger.Warn("не удалось декодировать сообщение атомарной ротации", "device_id", deviceID, "err", err)
 				continue
@@ -421,7 +430,7 @@ func (s *Server) serveSession(conn net.Conn, entry *connEntry, deviceID string) 
 				s.Logger.Warn("атомарная ротация, инициированная устройством, не удалась", "device_id", deviceID, "err", err)
 				continue
 			}
-			if err := entry.write(wire.TypeRotationAck, wire.EncodeRotationAck(ack)); err != nil {
+			if err := entry.write(wire.TypeRotationAck, wire.EncodeRotationAck(ack, key[:])); err != nil {
 				s.Logger.Warn("не удалось отправить подтверждение ротации", "device_id", deviceID, "err", err)
 				continue
 			}
@@ -430,7 +439,13 @@ func (s *Server) serveSession(conn net.Conn, entry *connEntry, deviceID string) 
 
 		case wire.TypeRotationAck:
 			// Устройство подтвердило ротацию, инициированную шлюзом: коммитим.
-			ack, err := wire.DecodeRotationAck(payload)
+			// Ключ ещё прежний: ротация применится ниже, после проверки метки.
+			key, err := s.GW.ControlKey(deviceID)
+			if err != nil {
+				s.Logger.Warn("нет сеансового ключа для проверки метки", "device_id", deviceID, "err", err)
+				continue
+			}
+			ack, err := wire.DecodeRotationAck(payload, key[:])
 			if err != nil {
 				s.Logger.Warn("не удалось декодировать подтверждение ротации", "device_id", deviceID, "err", err)
 				continue
@@ -505,7 +520,12 @@ func (s *Server) InitiateAtomicRotation(deviceID string) error {
 	if err != nil {
 		return err
 	}
-	return writeFrameWithDeadline(entry.conn, wire.TypeRotationV2, wire.EncodeRotationV2(rotMsg))
+	// Ключ действующий: новый вступит в силу только после подтверждения.
+	key, err := s.GW.ControlKey(deviceID)
+	if err != nil {
+		return err
+	}
+	return writeFrameWithDeadline(entry.conn, wire.TypeRotationV2, wire.EncodeRotationV2(rotMsg, key[:]))
 }
 
 // IssueFirmwareChallenge — серверный цикл шлюза вызывает это раз в час для

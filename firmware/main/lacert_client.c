@@ -148,11 +148,26 @@ lacert_err_t lacert_send_data(lacert_session_t *s, const char *payload) {
 // --- Обработка ротации, инициированной шлюзом (раздел 5) ---
 static lacert_err_t handle_rotation_v2(lacert_session_t *s,
                                        const uint8_t *payload, size_t plen) {
-    if (plen < 8) return LACERT_ERR_DECODE;
+    // Кадр: [8 байт номера шага][поле с шифротекстом][16 байт метки].
+    if (plen < 8 + LACERT_CONTROL_TAG_SIZE) return LACERT_ERR_DECODE;
+
+    size_t body_len = plen - LACERT_CONTROL_TAG_SIZE;
+    const uint8_t *tag = payload + body_len;
     uint64_t iteration = lacert_get_u64(payload);
+
+    // Метка проверяется ДО разбора содержимого: кадр от того, кто не знает
+    // сеансового ключа, отбрасывается целиком, и разбирать его незачем.
+    //
+    // Ключ здесь ещё прежний — новый вступит в силу ниже, после успешной
+    // ротации. Шлюз считает метку тем же прежним ключом.
+    lacert_err_t e = lacert_verify_control_tag(s->session_key,
+                                               LACERT_MSG_ROTATION_V2,
+                                               iteration, payload, body_len, tag);
+    if (e != LACERT_OK) return e;
+
     size_t off = 8;
     const uint8_t *kem_ct; size_t kem_ct_len;
-    lacert_err_t e = lacert_take_framed(payload, plen, &off, &kem_ct, &kem_ct_len);
+    e = lacert_take_framed(payload, body_len, &off, &kem_ct, &kem_ct_len);
     if (e != LACERT_OK) return e;
 
     // Та же проверка, что и в рукопожатии: lacert_kem_decapsulate читает ровно
@@ -177,14 +192,23 @@ static lacert_err_t handle_rotation_v2(lacert_session_t *s,
       if (e != LACERT_OK) { memset(mi,0,sizeof(mi)); return e; } }
     memset(mi, 0, sizeof(mi));
 
-    // Применяем новый ключ.
+    // Подтверждение подписывается ПРЕЖНИМ ключом, до применения ротации:
+    // шлюз проверит метку тоже прежним, поскольку у него ротация вступит в
+    // силу лишь после получения этого подтверждения. Если подписать новым,
+    // метки не сойдутся и ротация не завершится ни у одной стороны.
+    uint8_t ack[8 + LACERT_CONTROL_TAG_SIZE];
+    lacert_put_u64(ack, iteration);
+    e = lacert_control_tag(s->session_key, LACERT_MSG_ROTATION_ACK,
+                           iteration, ack, 8, ack + 8);
+    if (e != LACERT_OK) { memset(next_key, 0, sizeof(next_key)); return e; }
+
+    // Теперь применяем новый ключ.
     memcpy(s->session_key, next_key, LACERT_SESSION_KEY_SIZE);
     memset(next_key, 0, sizeof(next_key));
     s->iteration = iteration;
 
-    // Отвечаем ACK с тем же номером итерации.
-    uint8_t ack[8]; lacert_put_u64(ack, iteration);
-    return lacert_write_frame(s->sock, LACERT_MSG_ROTATION_ACK, ack, 8);
+    return lacert_write_frame(s->sock, LACERT_MSG_ROTATION_ACK,
+                              ack, sizeof(ack));
 }
 
 // --- Обработка проверки прошивки (раздел 6) ---

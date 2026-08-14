@@ -249,6 +249,7 @@ Payload:
 ```
 iteration                     // 8 bytes, uint64 BE (number of the new iteration)
 putFramed(kem_ciphertext)     // [uint16 len][ML-KEM ciphertext, 1568 bytes]
+control_tag                   // 16-byte authentication tag
 ```
 
 The device decapsulates a fresh secret `mi` with its ML-KEM private key:
@@ -275,6 +276,7 @@ Payload:
 
 ```
 iteration                     // 8 bytes, uint64 BE (the same iteration)
+control_tag                   // 16-byte authentication tag
 ```
 
 On receiving an ACK with the correct iteration number, the gateway commits the
@@ -286,6 +288,63 @@ the device is revoked.
 > `iteration == current_iteration + 1`. A lower or equal value is a
 > repeat/replay and must be rejected. A higher value with a gap indicates
 > desynchronization and must also be rejected.
+
+### 5.4 Authentication tag on control frames
+
+Frames 9 and 10 carry a 16-byte tag at the end:
+
+```
+control_tag = BLAKE3( session_key(32) || frame_type(1) || uint64_BE(iteration) ||
+                      body || "lacert-control-v1" )[:16]
+```
+
+where `body` is everything in the frame before the tag, and `frame_type` is the
+frame type number (9 or 10).
+
+**Why.** Data packets are protected by ChaCha20-Poly1305, which carries an
+authentication tag of its own. Control frames used to travel in the clear with
+no binding to the session key. Someone positioned in the connection cannot
+complete a handshake — that needs the device's private key — but could inject a
+rotation acknowledgement. The gateway would then commit the rotation while the
+device had not, the keys would diverge, and the device would eventually be
+revoked.
+
+**Why a tag rather than a signature.** An ECDSA signature costs 22.2 ms on the
+ESP32-C6 and 170.2 ms on the ESP32-S3, while rotation happens every five minutes
+or every three hundred packets. A BLAKE3 tag costs single-digit microseconds.
+Proving authorship to a third party is not needed here: both sides know the
+session key and an outsider does not.
+
+**What goes into the tag and why.** The key, without which the tag cannot be
+computed. The frame type, so a tag from an acknowledgement cannot be moved onto
+a rotation frame. The iteration number, binding the tag to a specific step so
+that an acknowledgement for a past step will not serve for the next one. The
+body, which protects the data itself.
+
+**Which key to use.** The current one, that is, the key from before the
+rotation. The new key only takes effect once the acknowledgement arrives, so
+both sides compute the tag over the same value. The device therefore computes
+the acknowledgement tag before applying the rotation, otherwise the tags would
+not match.
+
+**The error frame (type 8) carries no tag.** It is sent among other things when
+a handshake is refused, at which point neither side has a session key yet.
+Forging one gains nothing beyond what is already available: the device merely
+drops the connection and reconnects, and anyone able to inject a frame is able
+to cut the connection anyway. The contents of an error frame cannot be trusted,
+and no decisions should rest on them.
+
+**Compatibility.** The tag changes the frame format and breaks compatibility: a
+device running older firmware cannot complete a rotation with an upgraded
+gateway, since a frame without a tag is rejected. Upgrading the gateway requires
+reflashing the devices at the same time.
+
+The protocol carries no version number: there is no version field in the frame
+header and no version negotiation. Either both sides understand each other or
+they do not, and a mismatch surfaces as a decoding failure. For a closed
+deployment where the gateway and the devices are upgraded together this is
+enough, but rolling upgrades across a fleet would need a version field in the
+handshake.
 
 ---
 

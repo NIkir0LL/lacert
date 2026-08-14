@@ -210,21 +210,44 @@ func DecodeRotation(payload []byte) (*crypto.RotationMsg, error) {
 
 // --- RotationMsgV2 (атомарная ротация: номер итерации + шифротекст) ---
 
-func EncodeRotationV2(m *crypto.RotationMsgV2) []byte {
+// EncodeRotationV2 собирает кадр начала ротации и подписывает его меткой на
+// сеансовом ключе.
+//
+// Метка добавлена этой правкой формата. Прежде служебные кадры шли
+// открытым текстом, и вклинившийся в соединение мог подменить или вбросить
+// такой кадр, не зная сеансового ключа. Подробности — в crypto/controltag.go.
+func EncodeRotationV2(m *crypto.RotationMsgV2, sessionKey []byte) []byte {
+	body := encodeRotationV2Body(m)
+	tag := crypto.ComputeControlTag(sessionKey, TypeRotationV2, m.Iteration, body)
+	return append(body, tag...)
+}
+
+func encodeRotationV2Body(m *crypto.RotationMsgV2) []byte {
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], m.Iteration)
-	out := make([]byte, 0, 8+2+len(m.KEMCiphertext))
+	out := make([]byte, 0, 8+2+len(m.KEMCiphertext)+crypto.ControlTagSize)
 	out = append(out, buf[:]...)
 	out = putFramed(out, m.KEMCiphertext)
 	return out
 }
 
-func DecodeRotationV2(payload []byte) (*crypto.RotationMsgV2, error) {
-	if len(payload) < 8 {
-		return nil, fmt.Errorf("decode rotation v2: payload too short for iteration")
+// DecodeRotationV2 разбирает кадр начала ротации и проверяет его метку.
+//
+// Метка проверяется до разбора содержимого: кадр от того, кто не знает
+// сеансового ключа, отбрасывается целиком, и разбирать его незачем.
+func DecodeRotationV2(payload []byte, sessionKey []byte) (*crypto.RotationMsgV2, error) {
+	if len(payload) < 8+crypto.ControlTagSize {
+		return nil, fmt.Errorf("decode rotation v2: payload too short")
 	}
-	iteration := binary.BigEndian.Uint64(payload[0:8])
-	ct, _, err := takeFramed(payload[8:])
+	split := len(payload) - crypto.ControlTagSize
+	body, tag := payload[:split], payload[split:]
+
+	iteration := binary.BigEndian.Uint64(body[0:8])
+	if err := crypto.VerifyControlTag(sessionKey, TypeRotationV2, iteration, body, tag); err != nil {
+		return nil, fmt.Errorf("decode rotation v2: %w", err)
+	}
+
+	ct, _, err := takeFramed(body[8:])
 	if err != nil {
 		return nil, fmt.Errorf("decode rotation v2 ciphertext: %w", err)
 	}
@@ -233,17 +256,29 @@ func DecodeRotationV2(payload []byte) (*crypto.RotationMsgV2, error) {
 
 // --- RotationAck (подтверждение применения ротации) ---
 
-func EncodeRotationAck(a *crypto.RotationAck) []byte {
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], a.Iteration)
-	return buf[:]
+// EncodeRotationAck собирает подтверждение ротации с меткой подлинности.
+//
+// Этот кадр опаснее прочих: прежде он состоял из восьми байт номера шага и
+// ничего больше. Вброшенное подтверждение заставляло шлюз применить ротацию,
+// тогда как устройство её не применяло — ключи расходились, и устройство
+// в итоге отзывалось.
+func EncodeRotationAck(a *crypto.RotationAck, sessionKey []byte) []byte {
+	var body [8]byte
+	binary.BigEndian.PutUint64(body[:], a.Iteration)
+	tag := crypto.ComputeControlTag(sessionKey, TypeRotationAck, a.Iteration, body[:])
+	return append(body[:], tag...)
 }
 
-func DecodeRotationAck(payload []byte) (*crypto.RotationAck, error) {
-	if len(payload) < 8 {
+func DecodeRotationAck(payload []byte, sessionKey []byte) (*crypto.RotationAck, error) {
+	if len(payload) < 8+crypto.ControlTagSize {
 		return nil, fmt.Errorf("decode rotation ack: payload too short")
 	}
-	return &crypto.RotationAck{Iteration: binary.BigEndian.Uint64(payload[0:8])}, nil
+	body, tag := payload[:8], payload[8:8+crypto.ControlTagSize]
+	iteration := binary.BigEndian.Uint64(body[0:8])
+	if err := crypto.VerifyControlTag(sessionKey, TypeRotationAck, iteration, body, tag); err != nil {
+		return nil, fmt.Errorf("decode rotation ack: %w", err)
+	}
+	return &crypto.RotationAck{Iteration: iteration}, nil
 }
 
 // --- Data packet ---
@@ -300,5 +335,18 @@ func DecodeFirmwareResponse(payload []byte) (*crypto.FirmwareResponse, error) {
 
 // EncodeErrorMsg/DecodeErrorMsg — для передачи человекочитаемой ошибки
 // собеседнику перед закрытием соединения (например, "device revoked").
+// Кадр ошибки метку подлинности не несёт, и это осознанное решение.
+//
+// Две причины. Первая: кадр отправляется в том числе при отказе в рукопожатии,
+// когда сеансового ключа ещё нет ни у одной стороны, и подписывать его нечем.
+// Вторая: подделка этого кадра не даёт ничего сверх того, что и так доступно.
+// Единственное следствие получения — устройство закрывает соединение и
+// переподключается, а тот, кто способен вбросить кадр в соединение, способен
+// и просто оборвать его.
+//
+// Отсюда важное ограничение, которое стоит держать в голове: содержимому
+// кадра ошибки доверять нельзя, и решений на его основе принимать не следует.
+// Сейчас устройство только пишет причину в журнал и разрывает связь — этого
+// достаточно.
 func EncodeErrorMsg(msg string) []byte     { return []byte(msg) }
 func DecodeErrorMsg(payload []byte) string { return string(payload) }
