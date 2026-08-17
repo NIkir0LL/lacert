@@ -266,9 +266,16 @@ func TestSchedulerRollsBackStaleRotation(t *testing.T) {
 	fake = base.Add(crypto.RotationAckTimeout + time.Second)
 	sched.tick()
 
-	// После отката шлюз снова может инициировать ротацию (не «застрял»).
-	if _, err := gw.InitiateAtomicRotationToDevice("sched-stale-001"); err != nil {
-		t.Fatalf("rotation must be possible again after stale rollback: %v", err)
+	// После отката сессия закрывается: шлюз рвёт соединение, чтобы устройство
+	// прошло рукопожатие заново.
+	//
+	// Прежде здесь проверялось обратное — что ротацию можно начать снова. Это
+	// отражало старое поведение, при котором шлюз повторял попытку в той же
+	// сессии. Но устройство применяет новый ключ до отправки подтверждения,
+	// поэтому после отката ключи сторон расходятся, и повторять ротацию
+	// бессмысленно: шлюз уже не может расшифровать ни одного пакета.
+	if _, err := gw.InitiateAtomicRotationToDevice("sched-stale-001"); err == nil {
+		t.Fatal("после отката сессия должна быть закрыта, а не готова к новой ротации")
 	}
 	_ = dev
 }

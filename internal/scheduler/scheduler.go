@@ -57,6 +57,10 @@ type Scheduler struct {
 	// Сбрасывается при успешной ротации; при достижении порога устройство
 	// отзывается (см. MaxConsecutiveRotationFailures).
 	rotationFailures map[string]int
+	// failureSeen — когда счётчик неудач устройства обновлялся в последний
+	// раз. Нужен, чтобы удалять записи устройств, которые давно не
+	// появлялись: сам счётчик переживает переподключения намеренно.
+	failureSeen map[string]time.Time
 	// lastIteration — последний известный номер итерации ротации на устройство,
 	// для обнаружения успешного продвижения ротации между тактами.
 	lastIteration map[string]uint64
@@ -76,6 +80,7 @@ func New(gw *gateway.Gateway, srv *tcpserver.Server, logger *slog.Logger) *Sched
 		MaxRotationFailures: DefaultMaxConsecutiveRotationFailures,
 		lastFirmwareCheck:   make(map[string]time.Time),
 		rotationFailures:    make(map[string]int),
+		failureSeen:         make(map[string]time.Time),
 		lastIteration:       make(map[string]uint64),
 	}
 }
@@ -127,11 +132,20 @@ func (s *Scheduler) pruneFirmwareCheckState(active []string) {
 			delete(s.lastFirmwareCheck, id)
 		}
 	}
-	for id := range s.rotationFailures {
-		if _, ok := activeSet[id]; !ok {
-			delete(s.rotationFailures, id)
-		}
-	}
+	// Счётчик неуспешных ротаций намеренно НЕ чистится при отключении.
+	//
+	// Прежде чистился, и это было верно, пока неудача означала повторную
+	// попытку ротации в той же сессии. Теперь неудача приводит к разрыву
+	// соединения ради нового рукопожатия — и если стирать счётчик при
+	// отключении, он обнулялся бы после каждого разрыва, порог отзыва не
+	// достигался бы никогда, а неисправное устройство переподключалось бы
+	// бесконечно.
+	//
+	// Счётчик обнуляется в двух случаях: успешная ротация (см.
+	// checkRotationProgress) и превышение порога с отзывом. Чтобы записи не
+	// копились от устройств, которые больше не появятся, они удаляются по
+	// сроку давности.
+	s.forgetStaleFailures()
 	for id := range s.lastIteration {
 		if _, ok := activeSet[id]; !ok {
 			delete(s.lastIteration, id)
@@ -140,34 +154,64 @@ func (s *Scheduler) pruneFirmwareCheckState(active []string) {
 }
 
 func (s *Scheduler) maybeRotate(deviceID string) {
-	// Сначала откатываем застрявшую ротацию (ACK не пришёл вовремя). Это
-	// считается одной неуспешной попыткой ротации. Если таких попыток подряд
-	// накопилось слишком много — устройство перестало подтверждать смену
-	// ключа, и продолжать обмен под «застрявшим» ключом небезопасно, поэтому
-	// шлюз отзывает устройство (закрывает сессию, затирает ключи).
+	// Подтверждение ротации не пришло в срок, и шлюз откатился на прежний
+	// ключ. Устройство при этом новый ключ уже применило: в протоколе оно
+	// делает это до отправки подтверждения, иначе метку подлинности пришлось
+	// бы считать ключом, которого у шлюза ещё нет.
+	//
+	// Отсюда следствие, ради которого этот блок и переписан: после отката
+	// ключи сторон расходятся немедленно. Шлюз перестаёт расшифровывать
+	// пакеты устройства, а устройство об этом не знает и продолжает слать.
+	// Прежде шлюз просто повторял попытку ротации, копил неудачи и после
+	// третьей отзывал устройство — то есть исправная плата с медленной сетью
+	// выводилась из строя навсегда, а разошедшиеся ключи всё это время не
+	// давали работать.
+	//
+	// Правильный выход — не повторять ротацию, а разорвать соединение.
+	// Устройство переподключится и пройдёт рукопожатие заново, получив свежий
+	// ключ; проверено, что после расхождения повторное рукопожатие проходит.
+	// Отзыв остаётся, но лишь как последняя мера: если переподключение не
+	// помогает раз за разом, дело не в сети, и устройство действительно
+	// неисправно.
 	if s.GW.AbortStaleRotationIfNeeded(deviceID, crypto.RotationAckTimeout) {
 		s.rotationFailures[deviceID]++
+		s.failureSeen[deviceID] = time.Now()
 		fails := s.rotationFailures[deviceID]
-		s.Logger.Warn("незавершённая ротация откачена по тайм-ауту ACK",
-			"device_id", deviceID, "подряд_неуспешных", fails)
 
-		if fails >= s.MaxRotationFailures {
-			s.Logger.Error("превышен лимит подряд идущих неуспешных ротаций — отзыв устройства",
-				"device_id", deviceID, "лимит", s.MaxRotationFailures)
-			if err := s.GW.RevokeDevice(deviceID,
-				"устройство не подтвердило ротацию ключа заданное число раз подряд"); err != nil {
-				s.Logger.Warn("не удалось отозвать устройство после серии неуспешных ротаций",
-					"device_id", deviceID, "err", err)
-			}
-			// Отзыв в Gateway закрывает криптографическую сессию, но не рвёт
-			// TCP-сокет: транспорт про отзыв ничего не знает. Без явного
-			// разрыва отозванное устройство оставалось подключённым, попадало
-			// в ActiveDeviceIDs, и планировщик бесконечно пытался ротировать
-			// ему ключ. REST-хендлер отзыва делает то же самое (см.
-			// api.revokeDevice) — здесь этот шаг просто отсутствовал.
-			s.Srv.Disconnect(deviceID, "device revoked: rotation not acknowledged")
-			delete(s.rotationFailures, deviceID)
+		if fails < s.MaxRotationFailures {
+			s.Logger.Warn("подтверждение ротации не получено в срок — разрываем соединение для повторного рукопожатия",
+				"device_id", deviceID, "подряд_неуспешных", fails,
+				"порог_отзыва", s.MaxRotationFailures)
+			s.Srv.Disconnect(deviceID, "rotation not acknowledged: reconnect and handshake again")
+			_ = s.GW.Store.LogEvent(deviceID, "rotation_timeout",
+				"подтверждение ротации не получено в срок, соединение разорвано для повторного рукопожатия")
+			return
 		}
+
+		// Порог исчерпан: переподключение не помогло, дело не в задержках сети.
+		s.Logger.Error("устройство не подтверждает ротацию даже после переподключений — отзыв",
+			"device_id", deviceID, "лимит", s.MaxRotationFailures)
+		if err := s.GW.RevokeDevice(deviceID,
+			"устройство не подтвердило ротацию ключа заданное число раз подряд, включая попытки после переподключения"); err != nil {
+			s.Logger.Warn("не удалось отозвать устройство после серии неуспешных ротаций",
+				"device_id", deviceID, "err", err)
+		}
+		// Отзыв в Gateway закрывает криптографическую сессию, но не рвёт
+		// TCP-сокет: транспорт про отзыв ничего не знает. Без явного разрыва
+		// отозванное устройство оставалось подключённым, попадало в
+		// ActiveDeviceIDs, и планировщик бесконечно пытался ротировать ему
+		// ключ.
+		s.Srv.Disconnect(deviceID, "device revoked: rotation not acknowledged")
+		delete(s.rotationFailures, deviceID)
+		delete(s.failureSeen, deviceID)
+		return
+	}
+
+	// Ротация уже начата и ждёт подтверждения, но срок ожидания ещё не вышел
+	// (иначе её откатили бы выше). Начинать вторую нельзя, и пытаться незачем:
+	// попытка вернула бы отказ и записала в журнал тревожное сообщение о
+	// неудавшейся ротации там, где всё идёт по плану. Ждём следующего такта.
+	if s.GW.HasPendingRotation(deviceID) {
 		return
 	}
 
@@ -201,6 +245,25 @@ func (s *Scheduler) checkRotationProgress(deviceID string) {
 	s.lastIteration[deviceID] = iter
 }
 
+// failureRetention — как долго счётчик неудачных ротаций живёт без обновления.
+//
+// Значение с запасом: устройству нужно время на переподключение и новое
+// рукопожатие, а между попытками ротации проходит целый её период. Час
+// покрывает и медленную сеть, и устройство, которое ушло спать.
+const failureRetention = time.Hour
+
+// forgetStaleFailures удаляет счётчики устройств, которые давно не отмечались.
+// Без этого карта росла бы от каждого устройства, побывавшего на связи.
+func (s *Scheduler) forgetStaleFailures() {
+	cutoff := time.Now().Add(-failureRetention)
+	for id, seen := range s.failureSeen {
+		if seen.Before(cutoff) {
+			delete(s.rotationFailures, id)
+			delete(s.failureSeen, id)
+		}
+	}
+}
+
 // noteRotationSuccess сбрасывает счётчик неуспешных ротаций устройства — это
 // вызывается, когда ротация подтверждена (счётчик обнуляется, чтобы одиночные
 // сбои сети не накапливались до отзыва). Планировщик определяет успех по тому,
@@ -208,6 +271,7 @@ func (s *Scheduler) checkRotationProgress(deviceID string) {
 func (s *Scheduler) noteRotationSuccess(deviceID string) {
 	if s.rotationFailures[deviceID] != 0 {
 		delete(s.rotationFailures, deviceID)
+		delete(s.failureSeen, deviceID)
 	}
 }
 

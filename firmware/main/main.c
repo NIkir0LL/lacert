@@ -42,13 +42,13 @@ static const char *TAG = "lacert";
 // ---------------------------------------------------------------------------
 // Настройки стенда. Проще всего задать здесь; при желании вынести в menuconfig.
 // ---------------------------------------------------------------------------
-#define LACERT_WIFI_SSID      "DIR-615T-6a83"
-#define LACERT_WIFI_PASS      "30016415"
-#define LACERT_GW_HOST        "192.168.0.37"   // IP шлюза в локальной сети
+#define LACERT_WIFI_SSID      "Samsung"
+#define LACERT_WIFI_PASS      "1234567890"
+#define LACERT_GW_HOST        "10.15.107.104"   // IP шлюза в локальной сети
 #define LACERT_GW_HTTP_PORT   8080
 #define LACERT_GW_TCP_PORT    7700
 #define LACERT_DEVICE_ID      "devkit-esp32-s3"
-#define LACERT_ADMIN_TOKEN    "41b1751e147ce88ff135ba73bc537031f2bbb886b7a260c27a6f622bed941b8b"               // токен шлюза, если включён
+#define LACERT_ADMIN_TOKEN    "6081c41ad5516ffece7ba37e43ed420c7c5d177db8b9a932734c86c4dc937a8e"               // токен шлюза, если включён
 
 #define TELEMETRY_PERIOD_MS   2000
 #define RECONNECT_DELAY_MS    2000

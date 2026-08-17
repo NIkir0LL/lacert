@@ -227,6 +227,17 @@ func RespondToRotationAtomic(session *Session, myKEMPriv *mlkem1024.PrivateKey, 
 	return &RotationAck{Iteration: msg.Iteration}, nil
 }
 
+// HasPendingRotation сообщает, ждёт ли сессия подтверждения начатой ротации.
+//
+// Нужен планировщику: начинать новую ротацию, пока предыдущая висит, нельзя, и
+// без этой проверки он раз за разом получал бы отказ, засоряя журнал
+// тревожными сообщениями о неудавшейся ротации там, где всё идёт по плану.
+func (s *Session) HasPendingRotation() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.pendingActive
+}
+
 // ApplyRotationAck вызывается инициатором при получении ACK. Проверяет, что
 // подтверждение относится к ожидаемой итерации, и коммитит ротацию (переход
 // на Ki+1 и затирание Ki). Некорректный или устаревший ACK игнорируется без

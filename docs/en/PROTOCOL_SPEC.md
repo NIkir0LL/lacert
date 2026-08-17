@@ -281,8 +281,19 @@ control_tag                   // 16-byte authentication tag
 
 On receiving an ACK with the correct iteration number, the gateway commits the
 new key on its side. If no ACK arrives within `RotationAckTimeout` (5 s by
-default) the gateway rolls the rotation back. After several consecutive failures
-the device is revoked.
+default) the gateway rolls the rotation back and **drops the connection** so
+that the device performs a fresh handshake.
+
+A disconnect rather than a retry, because after the rollback the two sides' keys
+diverge: the device has already applied the new key (it does so before sending
+the acknowledgement) while the gateway has reverted to the previous one. From
+that moment the gateway cannot decrypt any packet from the device, and retrying
+the rotation is pointless. A fresh handshake gives both sides a new shared key.
+
+Revocation remains, but only as a last resort: if reconnections fail a set
+number of times in a row, the cause is not network latency and the device really
+is faulty. The failure counter survives a disconnect — otherwise the threshold
+would never be reached.
 
 > **Checking the iteration number.** The device must accept only
 > `iteration == current_iteration + 1`. A lower or equal value is a

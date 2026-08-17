@@ -648,6 +648,16 @@ func (g *Gateway) PendingHandshakeCountForTest() int {
 // задержек.
 func (g *Gateway) SetNowForTest(fn func() time.Time) { g.now = fn }
 
+// HasPendingRotation сообщает, ждёт ли сессия устройства подтверждения
+// начатой ротации.
+func (g *Gateway) HasPendingRotation(deviceID string) bool {
+	sess, err := g.session(deviceID)
+	if err != nil {
+		return false
+	}
+	return sess.HasPendingRotation()
+}
+
 func (g *Gateway) SessionIteration(deviceID string) uint64 {
 	s, err := g.session(deviceID)
 	if err != nil {
