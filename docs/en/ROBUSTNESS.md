@@ -39,17 +39,23 @@ types), `device`, `gateway`, `tcpclient`, `tcpserver`.
 `TestNonAtomicRotationBreaksOnPacketLoss`, which demonstrates the original
 problem), end-to-end tests in `internal/transport/tcpserver`.
 
-## 3. Timeout and automatic retry of an unfinished rotation
+## 3. Timeout of an unfinished rotation
 
 **Problem.** If no ACK arrived, the session stayed in a "transitional" state
 forever and could never rotate again.
 
 **Solution.** `Session.AbortIfStale(timeout)` rolls the rotation back if no ACK
 arrives within `RotationAckTimeout` (5 s). The scheduler
-(`internal/scheduler`) rolls back a stuck rotation and starts it over. A failed
-attempt is written to the log.
+(`internal/scheduler`) rolls back a stuck rotation and tears down the
+connection so the device runs the handshake again — retrying the rotation
+after a rollback is pointless, the two sides' keys have already diverged (the
+protocol specification covers this in detail). The failed attempt is written
+to the rotation log, and a single `rotation_timeout` event goes to the device
+log. If the reconnect limit is exhausted, the device is revoked.
 
-**Tests.** `TestAbortIfStale*` in crypto, `TestSchedulerRollsBackStaleRotation`.
+**Tests.** `TestAbortIfStale*` in crypto, `TestSchedulerRollsBackStaleRotation`,
+`TestSchedulerRevokesAfterConsecutiveRotationFailures`,
+`TestRotationTimeoutLoggedOnce`.
 
 ## 4. Timeout on the firmware integrity response
 

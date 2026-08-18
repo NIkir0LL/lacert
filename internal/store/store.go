@@ -55,9 +55,30 @@ func (d *DeviceRecord) FirmwareHashArray() ([crypto.FirmwareHashSize]byte, error
 // прошивки, отзыв) — соответствует "логам сессий и истории смены ключей",
 // упомянутым в работе как часть назначения таблиц PostgreSQL.
 type SessionEvent struct {
-	ID        uint      `json:"id"`
-	DeviceID  string    `json:"device_id"`
-	EventType string    `json:"event_type"` // "handshake" | "rotation" | "firmware_check" | "revoked" | "data"
+	ID       uint   `json:"id"`
+	DeviceID string `json:"device_id"`
+	// EventType — вид события. Значения, которые пишет шлюз:
+	//
+	//   registered              устройство внесено в реестр
+	//   reregistered            ключи заменены при повторной регистрации
+	//   handshake               рукопожатие завершено
+	//   handshake_rejected      рукопожатие отклонено
+	//   rotation                ротация ключа завершена
+	//   rotation_timeout        подтверждение не пришло в срок, соединение
+	//                           разорвано для повторного рукопожатия
+	//   firmware_check          проверка целостности прошивки пройдена
+	//   firmware_check_rejected ответ устарел и не принят
+	//   data_rejected           пакет отклонён
+	//   revoked                 устройство отозвано
+	//
+	// Принятая телеметрия событием не является: она сохраняется отдельной
+	// записью TelemetryReading (см. ниже), в журнале событий виден только
+	// отказ — data_rejected.
+	//
+	// Перечень не ограничивает запись: хранилище примет любую строку, а
+	// выборка по типам работает по точному совпадению. Список ведётся для
+	// читателя, и при добавлении нового вида его стоит дописать сюда.
+	EventType string    `json:"event_type"`
 	Detail    string    `json:"detail"`
 	CreatedAt time.Time `json:"created_at"`
 }

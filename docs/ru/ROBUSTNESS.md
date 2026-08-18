@@ -39,17 +39,23 @@
 `TestNonAtomicRotationBreaksOnPacketLoss`, демонстрирующий исходную проблему),
 e2e в `internal/transport/tcpserver`.
 
-## 3. Тайм-аут и авто-повтор незавершённой ротации
+## 3. Тайм-аут незавершённой ротации
 
 **Проблема.** Если ACK не приходил, сессия навсегда оставалась в «переходном»
 состоянии и не могла ротировать снова.
 
 **Решение.** `Session.AbortIfStale(timeout)` откатывает ротацию, если ACK не
 пришёл дольше `RotationAckTimeout` (5 с). Планировщик
-(`internal/scheduler`) откатывает застрявшую ротацию и инициирует её заново
-неуспешная попытка пишется в журнал.
+(`internal/scheduler`) откатывает застрявшую ротацию и разрывает соединение,
+чтобы устройство прошло рукопожатие заново — повторять ротацию после отката
+бессмысленно, ключи сторон уже разошлись (подробно в спецификации протокола).
+Неуспешная попытка пишется в журнал ротаций, в журнал устройства — одно
+событие `rotation_timeout`. Если лимит переподключений исчерпан, устройство
+отзывается.
 
-**Тесты.** `TestAbortIfStale*` в crypto, `TestSchedulerRollsBackStaleRotation`.
+**Тесты.** `TestAbortIfStale*` в crypto, `TestSchedulerRollsBackStaleRotation`,
+`TestSchedulerRevokesAfterConsecutiveRotationFailures`,
+`TestRotationTimeoutLoggedOnce`.
 
 ## 4. Тайм-аут ответа на проверку целостности прошивки
 

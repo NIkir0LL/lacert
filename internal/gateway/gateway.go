@@ -655,7 +655,7 @@ func (g *Gateway) HasPendingRotation(deviceID string) bool {
 	if err != nil {
 		return false
 	}
-	return sess.HasPendingRotation()
+	return sess.PendingRotation()
 }
 
 func (g *Gateway) SessionIteration(deviceID string) uint64 {
@@ -795,11 +795,12 @@ func (g *Gateway) AbortStaleRotationIfNeeded(deviceID string, timeout time.Durat
 	}
 	// Логируем как неуспешную попытку ротации, чтобы это было видно в журнале
 	// ротаций на дашборде (initiator=gateway, т.к. таймер шлюза инициировал).
+	// Событие rotation_timeout в журнал устройства здесь НЕ пишется: его пишет
+	// планировщик, который один знает следствие отката — разрыв соединения или
+	// отзыв — и может назвать его в тексте события точно.
 	oldKey, _ := s.CurrentKey()
 	g.logRotationAttempt(deviceID, "gateway", s, oldKey,
-		fmt.Errorf("rotation ack timeout after %s: rolled back, will retry", timeout))
-	_ = g.Store.LogEvent(deviceID, "rotation_timeout",
-		"ротация откачена: подтверждение (ACK) не получено в срок, будет повторена")
+		fmt.Errorf("rotation ack timeout after %s: rolled back", timeout))
 	return true
 }
 

@@ -648,6 +648,10 @@ button, input, textarea, select {
   font-weight: 600;
   margin-right: 8px;
 }
+/* Тревожные события: отказ, отзыв, отклонённый пакет. */
+.events-list .evt-type.evt-bad { color: var(--red); }
+/* Заметные: сами по себе не поломка, но требуют внимания оператора. */
+.events-list .evt-type.evt-warn { color: var(--teal); }
 .events-list .evt-time {
   color: var(--text-faint);
   font-size: 10.5px;

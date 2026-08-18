@@ -327,6 +327,30 @@ function renderLastTelemetryBox(lt) {
     '<div class="telemetry-time">' + fmtTime(lt.received_at) + "</div>";
 }
 
+
+/* Значимость события: по ней журнал раскрашивается, чтобы важное не терялось
+   среди рядовых записей.
+
+   Тревожные — то, что означает отказ или потерю доверия. Заметные — то, что
+   само по себе не поломка, но требует внимания: например, устройство
+   переподключается из-за задержек сети, а ключи при этом уже разошлись и
+   обмен не работал. Раньше такая запись выглядела так же, как рядовое
+   рукопожатие, и терялась. */
+function eventSeverity(type) {
+  switch (type) {
+    case "revoked":
+    case "handshake_rejected":
+    case "data_rejected":
+    case "firmware_check_rejected":
+      return "evt-bad";
+    case "rotation_timeout":
+    case "reregistered":
+      return "evt-warn";
+    default:
+      return "";
+  }
+}
+
 function renderEvents(events) {
   const list = el("events-list");
   if (events.length === 0) {
@@ -335,7 +359,8 @@ function renderEvents(events) {
   }
   list.innerHTML = events.map((e) =>
     "<li>" +
-      '<span class="evt-type">' + escapeHTML(e.event_type) + "</span>" +
+      '<span class="evt-type ' + eventSeverity(e.event_type) + '">' +
+        escapeHTML(e.event_type) + "</span>" +
       escapeHTML(e.detail || "") +
       '<span class="evt-time">' + fmtTime(e.created_at) + "</span>" +
     "</li>"

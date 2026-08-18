@@ -60,7 +60,9 @@ this same gateway.
 What the page offers: a device list with real-time online status and a short
 preview of the latest message. Enrollment of a new device (you can paste an
 entire line from the serial port and the fields fill themselves in). A device
-card with the full latest message and an event log. A **"Monitoring" section** —
+card with the full latest message and an event log where important entries are
+color-coded: red for rejections and revocation, teal for entries that need the
+operator's attention but are not failures. A **"Monitoring" section** —
 charts of numeric telemetry fields over time (an overview across all devices or
 a specific device, over 30 min / 1 / 6 / 12 / 24 hours or a custom range) plus a
 history of received packets. A **"Rotation log" section** — every key-change
