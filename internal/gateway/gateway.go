@@ -801,6 +801,7 @@ func (g *Gateway) AbortStaleRotationIfNeeded(deviceID string, timeout time.Durat
 	oldKey, _ := s.CurrentKey()
 	g.logRotationAttempt(deviceID, "gateway", s, oldKey,
 		fmt.Errorf("rotation ack timeout after %s: rolled back", timeout))
+	g.Metrics.incRotationTimeout()
 	return true
 }
 

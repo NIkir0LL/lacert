@@ -1084,7 +1084,7 @@ function renderRotations(entries) {
 // Список полей метрик и соответствующих им id элементов-значений.
 const METRIC_KEYS = [
   "handshakes_completed", "handshakes_rejected", "replays_blocked",
-  "rotations_succeeded", "rotations_failed",
+  "rotations_succeeded", "rotations_failed", "rotation_timeouts",
   "firmware_checks_passed", "firmware_checks_failed", "firmware_checks_rejected",
   "devices_revoked",
   "data_replays_blocked",

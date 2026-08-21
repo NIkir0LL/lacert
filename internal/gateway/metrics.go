@@ -21,6 +21,13 @@ type Metrics struct {
 	RotationsSucceeded uint64 // успешные ротации ключа (любой инициатор)
 	RotationsFailed    uint64 // неуспешные попытки ротации (включая тайм-аут ACK)
 
+	// RotationTimeouts — откаты ротации по тайм-ауту подтверждения, когда ACK
+	// не пришёл в срок. Входят и в RotationsFailed, но считаются отдельно —
+	// тайм-аут обычно означает живое устройство за медленной сетью, а не
+	// ошибку протокола, и на дашборде эти судьбы важно различать. Растёт
+	// синхронно с событием rotation_timeout в журнале устройства.
+	RotationTimeouts uint64
+
 	FirmwareChecksPassed   uint64 // пройденные проверки целостности прошивки
 	FirmwareChecksFailed   uint64 // проваленные проверки (устройство отозвано)
 	FirmwareChecksRejected uint64 // отклонённые ответы (устаревший challenge)
@@ -48,6 +55,7 @@ func (m *Metrics) incReplayBlocked()      { m.mu.Lock(); m.ReplaysBlocked++; m.m
 
 func (m *Metrics) incRotationSucceeded() { m.mu.Lock(); m.RotationsSucceeded++; m.mu.Unlock() }
 func (m *Metrics) incRotationFailed()    { m.mu.Lock(); m.RotationsFailed++; m.mu.Unlock() }
+func (m *Metrics) incRotationTimeout()   { m.mu.Lock(); m.RotationTimeouts++; m.mu.Unlock() }
 
 func (m *Metrics) incFirmwarePassed()   { m.mu.Lock(); m.FirmwareChecksPassed++; m.mu.Unlock() }
 func (m *Metrics) incFirmwareFailed()   { m.mu.Lock(); m.FirmwareChecksFailed++; m.mu.Unlock() }
@@ -70,6 +78,7 @@ func (m *Metrics) Snapshot() MetricsSnapshot {
 		ReplaysBlocked:         m.ReplaysBlocked,
 		RotationsSucceeded:     m.RotationsSucceeded,
 		RotationsFailed:        m.RotationsFailed,
+		RotationTimeouts:       m.RotationTimeouts,
 		FirmwareChecksPassed:   m.FirmwareChecksPassed,
 		FirmwareChecksFailed:   m.FirmwareChecksFailed,
 		FirmwareChecksRejected: m.FirmwareChecksRejected,
@@ -86,6 +95,7 @@ type MetricsSnapshot struct {
 	ReplaysBlocked         uint64 `json:"replays_blocked"`
 	RotationsSucceeded     uint64 `json:"rotations_succeeded"`
 	RotationsFailed        uint64 `json:"rotations_failed"`
+	RotationTimeouts       uint64 `json:"rotation_timeouts"`
 	FirmwareChecksPassed   uint64 `json:"firmware_checks_passed"`
 	FirmwareChecksFailed   uint64 `json:"firmware_checks_failed"`
 	FirmwareChecksRejected uint64 `json:"firmware_checks_rejected"`

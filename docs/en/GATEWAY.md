@@ -92,7 +92,8 @@ shown on the dashboard's "Metrics" tab.
 | `handshakes_rejected` | rejected handshakes (bad signature, unknown or revoked device) |
 | `replays_blocked` | blocked replays: a frame with an already-used nonce |
 | `rotations_succeeded` | key rotations acknowledged by the device (ACK received) |
-| `rotations_failed` | rotations rolled back on ACK timeout |
+| `rotations_failed` | failed rotation attempts — bad tag, stale iteration, or ACK timeout |
+| `rotation_timeouts` | rollbacks on ACK timeout, when no ACK arrived in time (also included in `rotations_failed`) |
 | `firmware_checks_passed` | firmware integrity checks that passed |
 | `firmware_checks_failed` | checks that failed (signature mismatch or firmware hash mismatch) |
 | `firmware_checks_rejected` | responses rejected as stale (later than `LACERT_FIRMWARE_VALIDITY`) |

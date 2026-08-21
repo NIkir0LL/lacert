@@ -129,6 +129,12 @@ type Server struct {
 	wg     sync.WaitGroup
 	active int // текущее число обслуживаемых соединений, под mu
 
+	// serveStarted и serveExited дают Shutdown дождаться выхода самой горутины
+	// Serve, а не только обслуживающих: флаг под mu отмечает, что цикл accept
+	// запускался, канал закрывается при его завершении.
+	serveStarted bool
+	serveExited  chan struct{}
+
 	// OnData вызывается каждый раз, когда шлюз успешно расшифровал пакет
 	// данных от устройства — сюда подключается передача в корпоративную
 	// систему (REST/MQTT, см. internal/api и internal/mqttbridge).
@@ -140,7 +146,12 @@ func New(gw *gateway.Gateway, logger *slog.Logger) *Server {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Server{GW: gw, Logger: logger, conns: make(map[string]*connEntry)}
+	return &Server{
+		GW:          gw,
+		Logger:      logger,
+		conns:       make(map[string]*connEntry),
+		serveExited: make(chan struct{}),
+	}
 }
 
 // ListenAndServe запускает приём соединений на addr (например, ":7700") и
@@ -161,7 +172,17 @@ func (s *Server) ListenAndServe(addr string) error {
 func (s *Server) Serve(ln net.Listener) error {
 	s.mu.Lock()
 	s.ln = ln
+	s.serveStarted = true
 	s.mu.Unlock()
+	// Serve одноразовый, как и сам listener: закрытие serveExited сигналит
+	// Shutdown, что цикл accept вышел и горутина завершилась.
+	defer close(s.serveExited)
+
+	// Предел читается один раз при старте — настройка и так задаётся до
+	// запуска и на лету не меняется. Снимок ещё и исключает гонку с тестами,
+	// которые возвращают прежнее значение глобальной переменной после
+	// остановки сервера: цикл после старта к ней не обращается.
+	limit := MaxConnections
 
 	s.Logger.Info("шлюз слушает TCP-соединения от устройств", "addr", ln.Addr().String())
 	for {
@@ -176,14 +197,14 @@ func (s *Server) Serve(ln net.Listener) error {
 		// Потолок проверяем до запуска горутины: отказ должен быть дешёвым,
 		// иначе защита сама становится нагрузкой.
 		s.mu.Lock()
-		over := s.active >= MaxConnections
+		over := s.active >= limit
 		if !over {
 			s.active++
 		}
 		s.mu.Unlock()
 		if over {
 			s.Logger.Warn("достигнут предел одновременных соединений, подключение отклонено",
-				"remote", conn.RemoteAddr().String(), "limit", MaxConnections)
+				"remote", conn.RemoteAddr().String(), "limit", limit)
 			_ = conn.Close()
 			continue
 		}
@@ -213,9 +234,13 @@ func (s *Server) ActiveConnections() int {
 	return s.active
 }
 
-// Shutdown закрывает listener и все активные соединения с устройствами,
-// что приводит к корректному завершению всех обслуживающих горутин.
-// Вызывается из cmd/gatewayd при получении сигнала остановки.
+// Shutdown закрывает listener и все активные соединения с устройствами и
+// дожидается завершения всех горутин сервера — и обслуживающих, и самой
+// горутины с циклом accept. До этой правки Shutdown ждал только обслуживающие,
+// а хвост Serve оставался жить и после возврата — на этом однажды поймалась
+// гонка данных в тестах: восстановление глобального предела соединений
+// пересекалось с его чтением в ещё живом цикле. Вызывается из cmd/gatewayd
+// при получении сигнала остановки.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	if s.ln != nil {
@@ -224,11 +249,15 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	for _, e := range s.conns {
 		_ = e.conn.Close()
 	}
+	started := s.serveStarted
 	s.mu.Unlock()
 
 	done := make(chan struct{})
 	go func() {
 		s.wg.Wait()
+		if started {
+			<-s.serveExited
+		}
 		close(done)
 	}()
 	select {

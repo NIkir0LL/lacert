@@ -47,7 +47,14 @@ func startTestServer(t *testing.T) (addr string, gw *gateway.Gateway, srv *tcpse
 		_ = srv.Serve(ln)
 	}()
 
-	t.Cleanup(func() { ln.Close() })
+	// Останавливаем через Shutdown, а не голым ln.Close: он дожидается выхода
+	// и обслуживающих горутин, и самого цикла accept, поэтому очистки после
+	// него не пересекаются с ещё живым сервером.
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(ctx)
+	})
 	return addr, gw, srv
 }
 
