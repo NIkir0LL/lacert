@@ -101,13 +101,18 @@ func TestFullLifecycle_RegistrationHandshakeDataRotation(t *testing.T) {
 		t.Fatal("device should need rotation after reaching packet limit")
 	}
 
-	// Устройство инициирует ротацию.
-	rotMsg, err := dev.InitiateRotation()
+	// Устройство инициирует атомарную ротацию: сообщение, ACK от шлюза,
+	// применение на устройстве только после подтверждения.
+	rotMsg, err := dev.InitiateAtomicRotation()
 	if err != nil {
 		t.Fatalf("device initiate rotation: %v", err)
 	}
-	if err := gw.HandleRotationFromDevice(dev.ID, rotMsg); err != nil {
+	ack, err := gw.HandleAtomicRotationFromDevice(dev.ID, rotMsg)
+	if err != nil {
 		t.Fatalf("gateway handle rotation: %v", err)
+	}
+	if err := dev.ApplyRotationAckFromGateway(ack); err != nil {
+		t.Fatalf("device apply rotation ack: %v", err)
 	}
 
 	if dev.NeedsRotation() {
@@ -141,12 +146,16 @@ func TestGatewayInitiatedRotation(t *testing.T) {
 	dev := newRegisteredDevice(t, gw, "esp32-s3-002", crypto.SigECDSAP256, firmware)
 	runHandshake(t, gw, dev)
 
-	rotMsg, err := gw.InitiateRotationToDevice(dev.ID)
+	rotMsg, err := gw.InitiateAtomicRotationToDevice(dev.ID)
 	if err != nil {
 		t.Fatalf("gateway initiate rotation: %v", err)
 	}
-	if err := dev.HandleRotationFromGateway(rotMsg); err != nil {
+	ack, err := dev.HandleAtomicRotationFromGateway(rotMsg)
+	if err != nil {
 		t.Fatalf("device handle rotation from gateway: %v", err)
+	}
+	if err := gw.ApplyRotationAckFromDevice(dev.ID, ack); err != nil {
+		t.Fatalf("gateway apply rotation ack: %v", err)
 	}
 
 	// Канал должен продолжать работать тем же новым ключом на обеих сторонах.
@@ -237,7 +246,7 @@ func TestFirmwareCheckRevokesDeviceOnTamperedFirmware(t *testing.T) {
 
 	// Дальнейшие операции (например, новая ротация) с отозванным устройством
 	// больше не должны быть возможны через активную сессию шлюза.
-	if _, err := gw.InitiateRotationToDevice(dev.ID); err == nil {
+	if _, err := gw.InitiateAtomicRotationToDevice(dev.ID); err == nil {
 		t.Fatal("expected rotation to fail for a revoked device (session should have been dropped)")
 	}
 }
@@ -330,11 +339,11 @@ func TestRotationLoggedWithoutKeysByDefault(t *testing.T) {
 	dev := newRegisteredDevice(t, gw, "esp32-rotation-log-001", crypto.SigECDSAP256, firmware)
 	runHandshake(t, gw, dev)
 
-	rotMsg, err := dev.InitiateRotation()
+	rotMsg, err := dev.InitiateAtomicRotation()
 	if err != nil {
 		t.Fatalf("device initiate rotation: %v", err)
 	}
-	if err := gw.HandleRotationFromDevice(dev.ID, rotMsg); err != nil {
+	if _, err := gw.HandleAtomicRotationFromDevice(dev.ID, rotMsg); err != nil {
 		t.Fatalf("gateway handle rotation: %v", err)
 	}
 
@@ -372,12 +381,16 @@ func TestRotationLoggedWithFullKeysWhenEnabled(t *testing.T) {
 	dev := newRegisteredDevice(t, gw, "esp32-rotation-log-002", crypto.SigECDSAP256, firmware)
 	runHandshake(t, gw, dev)
 
-	rotMsg, err := gw.InitiateRotationToDevice(dev.ID)
+	rotMsg, err := gw.InitiateAtomicRotationToDevice(dev.ID)
 	if err != nil {
 		t.Fatalf("gateway initiate rotation: %v", err)
 	}
-	if err := dev.HandleRotationFromGateway(rotMsg); err != nil {
+	ack, err := dev.HandleAtomicRotationFromGateway(rotMsg)
+	if err != nil {
 		t.Fatalf("device handle rotation: %v", err)
+	}
+	if err := gw.ApplyRotationAckFromDevice(dev.ID, ack); err != nil {
+		t.Fatalf("gateway apply rotation ack: %v", err)
 	}
 
 	history, err := gw.Store.RotationHistory(dev.ID, 0)
@@ -415,8 +428,13 @@ func TestFailedRotationIsLoggedAsUnsuccessful(t *testing.T) {
 	// padding-oracle-атак, а не баг. Поэтому, чтобы здесь действительно
 	// получить ошибку (а не просто разойтись по ключу без видимого сбоя),
 	// нужен шифротекст НЕВЕРНОЙ ДЛИНЫ.
-	badMsg := &crypto.RotationMsg{KEMCiphertext: bytes.Repeat([]byte{0xFF}, 100)}
-	if err := gw.HandleRotationFromDevice(dev.ID, badMsg); err == nil {
+	// Номер итерации ставим верный (текущая плюс один), чтобы пройти защиту
+	// от повтора и добраться именно до декапсуляции.
+	badMsg := &crypto.RotationMsgV2{
+		KEMCiphertext: bytes.Repeat([]byte{0xFF}, 100),
+		Iteration:     gw.SessionIteration(dev.ID) + 1,
+	}
+	if _, err := gw.HandleAtomicRotationFromDevice(dev.ID, badMsg); err == nil {
 		t.Fatal("expected rotation with malformed-length ciphertext to fail")
 	}
 
@@ -478,7 +496,7 @@ func TestRevokeDeviceClosesActiveSession(t *testing.T) {
 
 	// Попытка инициировать ротацию шлюзом для отозванного устройства тоже
 	// должна проваливаться — сессии больше нет.
-	if _, err := gw.InitiateRotationToDevice(dev.ID); err == nil {
+	if _, err := gw.InitiateAtomicRotationToDevice(dev.ID); err == nil {
 		t.Fatal("expected rotation to fail for a revoked device with no active session")
 	}
 }

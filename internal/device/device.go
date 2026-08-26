@@ -170,29 +170,6 @@ func (d *Device) NeedsRotation() bool {
 	return d.session.NeedsRotation()
 }
 
-// InitiateRotation — устройство сам инициирует ротацию (инкапсулирует секрет
-// под KEM-публичным ключом шлюза). Используется, когда именно устройство
-// первым замечает, что наступило время ротации (см. rotation.go в crypto —
-// схема симметрична, инициировать может любая сторона).
-func (d *Device) InitiateRotation() (*crypto.RotationMsg, error) {
-	if d.session == nil {
-		return nil, errors.New("no active session")
-	}
-	if d.gatewayKEM == nil {
-		return nil, errors.New("gateway kem public key is not configured")
-	}
-	return crypto.InitiateRotation(d.session, d.gatewayKEM)
-}
-
-// HandleRotationFromGateway — устройство получает RotationMsg, инициированный
-// шлюзом, и обновляет свою сессию.
-func (d *Device) HandleRotationFromGateway(msg *crypto.RotationMsg) error {
-	if d.session == nil {
-		return errors.New("no active session")
-	}
-	return crypto.RespondToRotation(d.session, d.KEM.Priv, msg)
-}
-
 // --- Атомарная ротация (варианты А+В) на стороне устройства ---
 
 // InitiateAtomicRotation — устройство инициирует атомарную ротацию,

@@ -113,47 +113,6 @@ func (s *Session) RecordPacket() {
 	s.packetCount++
 }
 
-// Rotate вычисляет новый ключ Ki+1 = BLAKE3(Ki || Mi || "rotate_v1") и
-// немедленно затирает старый ключ Ki из памяти через sodium_memzero-аналог
-// (constant-time zeroing). Mi — новый общий секрет, полученный через
-// ML-KEM при данной ротации (см. RotationStep в rotation.go).
-//
-// Это даёт два свойства безопасности (PFS/PCS) — см. README протокола:
-//   - PFS: старый Ki уничтожен, поэтому компрометация текущего ключа не
-//     раскрывает прошлый трафик.
-//   - PCS: новый Ki+1 зависит от свежего Mi, которого у атакующего,
-//     скомпрометировавшего только Ki, нет — поэтому он теряет доступ
-//     к новому трафику после следующей ротации.
-func (s *Session) Rotate(mi []byte) error {
-	if len(mi) != sessionKeySize {
-		return errors.New("mi must be 32 bytes (ml-kem-1024 shared secret)")
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return errors.New("session is closed")
-	}
-
-	h := blake3.New()
-	h.Write(s.key[:])
-	h.Write(mi)
-	h.Write([]byte(rotateSeparator))
-	newKey := h.Sum(nil) // 32 байта по умолчанию
-
-	// Затирание старого ключа перед заменой (имитация sodium_memzero).
-	zeroize(s.key[:])
-
-	copy(s.key[:], newKey)
-	zeroize(newKey)
-
-	s.packetCount = 0
-	s.lastRotatedAt = time.Now()
-	s.rotationCount++
-	s.resetSeenNoncesLocked()
-	return nil
-}
-
 // Close затирает текущий ключ и помечает сессию как закрытую — вызывается
 // при разрыве соединения или исключении устройства из сети.
 func (s *Session) Close() {

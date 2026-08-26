@@ -196,18 +196,6 @@ func DecodeMsg3(payload []byte) (*crypto.HandshakeMsg3, error) {
 
 // --- RotationMsg ---
 
-func EncodeRotation(m *crypto.RotationMsg) []byte {
-	return putFramed(nil, m.KEMCiphertext)
-}
-
-func DecodeRotation(payload []byte) (*crypto.RotationMsg, error) {
-	ct, _, err := takeFramed(payload)
-	if err != nil {
-		return nil, fmt.Errorf("decode rotation ciphertext: %w", err)
-	}
-	return &crypto.RotationMsg{KEMCiphertext: ct}, nil
-}
-
 // --- RotationMsgV2 (атомарная ротация: номер итерации + шифротекст) ---
 
 // EncodeRotationV2 собирает кадр начала ротации и подписывает его меткой на

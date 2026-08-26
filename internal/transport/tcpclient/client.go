@@ -98,26 +98,6 @@ func (c *Client) SendData(plaintext []byte) error {
 	return wire.WriteFrame(c.conn, wire.TypeData, wire.EncodeData(nonce, ciphertext))
 }
 
-// RotateIfNeeded проверяет, не пора ли ротировать ключ (300 пакетов/300 сек),
-// и если да — инициирует ротацию со стороны устройства.
-func (c *Client) RotateIfNeeded() (rotated bool, err error) {
-	if !c.Dev.NeedsRotation() {
-		return false, nil
-	}
-	rotMsg, err := c.Dev.InitiateRotation()
-	if err != nil {
-		return false, fmt.Errorf("initiate rotation: %w", err)
-	}
-	c.mu.Lock()
-	err = wire.WriteFrame(c.conn, wire.TypeRotation, wire.EncodeRotation(rotMsg))
-	c.mu.Unlock()
-	if err != nil {
-		return false, fmt.Errorf("send rotation: %w", err)
-	}
-	c.Logger.Info("ротация ключа (инициатор: устройство) отправлена")
-	return true, nil
-}
-
 // ForceAtomicRotation инициирует атомарную ротацию немедленно, без проверки
 // NeedsRotation. Полезно для тестов и для ручного запуска ротации по внешнему
 // событию (например, после подозрения на компрометацию).
@@ -184,18 +164,6 @@ func (c *Client) Listen() error {
 		}
 
 		switch msgType {
-		case wire.TypeRotation:
-			rotMsg, err := wire.DecodeRotation(payload)
-			if err != nil {
-				c.Logger.Warn("не удалось декодировать сообщение ротации от шлюза", "err", err)
-				continue
-			}
-			if err := c.Dev.HandleRotationFromGateway(rotMsg); err != nil {
-				c.Logger.Warn("не удалось обработать ротацию от шлюза", "err", err)
-				continue
-			}
-			c.Logger.Info("ротация ключа (инициатор: шлюз) применена")
-
 		case wire.TypeRotationV2:
 			// Шлюз инициировал атомарную ротацию: применяем и отвечаем ACK.
 			//

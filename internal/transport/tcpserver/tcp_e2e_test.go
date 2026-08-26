@@ -121,10 +121,22 @@ func TestTCPHandshakeAndData(t *testing.T) {
 	}
 }
 
-func TestTCPDeviceInitiatedRotation(t *testing.T) {
-	addr, gw, _ := startTestServer(t)
-	firmware := []byte("firmware-v1")
-	dev := registerDevice(t, gw, "tcp-esp32-002", firmware)
+// Замена прежнего теста ротации, который был ложно-зелёным: он проверял
+// локальный счётчик пакетов (обнулённый самим вызовом ротации) и успех записи
+// в сокет, а канал после неатомарной ротации на деле был мёртв. Здесь ротация
+// атомарная, а доставка после неё подтверждается принимающей стороной — шлюз
+// обязан расшифровать пакет под новым ключом и отдать его в OnData.
+func TestTCPClientAtomicRotationDeliversDataToServer(t *testing.T) {
+	addr, gw, srv := startTestServer(t)
+	dev := registerDevice(t, gw, "tcp-esp32-rot-delivery", []byte("firmware-v1"))
+
+	var mu sync.Mutex
+	var received [][]byte
+	srv.OnData = func(deviceID string, plaintext []byte) {
+		mu.Lock()
+		received = append(received, append([]byte(nil), plaintext...))
+		mu.Unlock()
+	}
 
 	client, err := tcpclient.Dial(addr, dev, quietLogger())
 	if err != nil {
@@ -133,30 +145,30 @@ func TestTCPDeviceInitiatedRotation(t *testing.T) {
 	defer client.Close()
 	go client.Listen() //nolint:errcheck
 
-	// Доводим до лимита пакетов, чтобы устройство решило, что пора ротировать.
-	for dev.SessionStats().PacketCount < crypto.RotationPacketLimit-1 {
-		if err := client.SendData([]byte("x")); err != nil {
-			t.Fatalf("send data: %v", err)
-		}
-	}
-	if err := client.SendData([]byte("x")); err != nil {
+	if err := client.SendData([]byte("pre-rotation")); err != nil {
 		t.Fatalf("send data: %v", err)
 	}
-
-	rotated, err := client.RotateIfNeeded()
-	if err != nil {
-		t.Fatalf("rotate if needed: %v", err)
+	if err := client.ForceAtomicRotation(); err != nil {
+		t.Fatalf("atomic rotate: %v", err)
 	}
-	if !rotated {
-		t.Fatal("expected rotation to be triggered")
-	}
+	waitFor(t, 2*time.Second, func() bool {
+		return dev.SessionIteration() == 1 && gw.SessionIteration(dev.ID) == 1
+	})
 
-	// После ротации канал должен продолжать работать.
-	waitFor(t, 2*time.Second, func() bool { return dev.SessionStats().PacketCount == 0 })
-
-	if err := client.SendData([]byte("post-rotation")); err != nil {
+	payload := []byte("post-rotation-through-server")
+	if err := client.SendData(payload); err != nil {
 		t.Fatalf("send data after rotation: %v", err)
 	}
+	waitFor(t, 2*time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, p := range received {
+			if bytes.Equal(p, payload) {
+				return true
+			}
+		}
+		return false
+	})
 }
 
 func TestTCPGatewayInitiatedRotationAndFirmwareCheck(t *testing.T) {
@@ -173,7 +185,7 @@ func TestTCPGatewayInitiatedRotationAndFirmwareCheck(t *testing.T) {
 
 	// Шлюз сам инициирует ротацию через установленное соединение.
 	waitFor(t, time.Second, func() bool { return len(srv.ActiveDeviceIDs()) == 1 })
-	if err := srv.InitiateRotation(dev.ID); err != nil {
+	if err := srv.InitiateAtomicRotation(dev.ID); err != nil {
 		t.Fatalf("server initiate rotation: %v", err)
 	}
 	waitFor(t, 2*time.Second, func() bool { return dev.SessionStats().RotationCount == 1 })
@@ -242,7 +254,7 @@ func TestTCPDeviceReconnectDoesNotLoseAddressing(t *testing.T) {
 
 	// Шлюз должен по-прежнему быть способен адресовать устройство через
 	// новое соединение (это и есть регрессия, которую мы проверяем).
-	if err := srv.InitiateRotation(dev.ID); err != nil {
+	if err := srv.InitiateAtomicRotation(dev.ID); err != nil {
 		t.Fatalf("gateway should still be able to address the device after reconnect: %v", err)
 	}
 	waitFor(t, 2*time.Second, func() bool { return dev.SessionStats().RotationCount == 1 })
@@ -291,7 +303,7 @@ func TestTCPConcurrentServerWrites(t *testing.T) {
 			// нуждается в ротации" или "ротация уже идёт" — нас интересует
 			// отсутствие panic/повреждения потока на конкурентной записи в
 			// сокет, а не успех каждого отдельного вызова.
-			_ = srv.InitiateRotation(dev.ID)
+			_ = srv.InitiateAtomicRotation(dev.ID)
 		}()
 	}
 	wg.Wait()

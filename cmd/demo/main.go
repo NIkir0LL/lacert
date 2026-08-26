@@ -78,10 +78,13 @@ func main() {
 		dev.SessionStats().PacketCount, crypto.RotationPacketLimit)
 
 	t1 := time.Now()
-	rotMsg, err := dev.InitiateRotation()
+	rotMsg, err := dev.InitiateAtomicRotation()
 	must(err)
-	must(gw.HandleRotationFromDevice(dev.ID, rotMsg))
-	fmt.Printf("  Ротация выполнена за %v. Ki+1 = BLAKE3(Ki || Mi || \"rotate_v1\"); счётчик сброшен в %d\n",
+	ack, err := gw.HandleAtomicRotationFromDevice(dev.ID, rotMsg)
+	must(err)
+	must(dev.ApplyRotationAckFromGateway(ack))
+	fmt.Printf("  Атомарная ротация выполнена за %v. Ki+1 = BLAKE3(Ki || Mi || i || разделитель), "+
+		"новый ключ применён обеими сторонами только после ACK; счётчик сброшен в %d\n",
 		time.Since(t1), dev.SessionStats().PacketCount)
 
 	fmt.Println("  Канал продолжает работать без разрыва соединения, под новым ключом:")
@@ -93,9 +96,11 @@ func main() {
 	fmt.Printf("  Пакет после ротации: устройство -> шлюз: %q (расшифровано: %q)\n", payload, plain)
 
 	section("3.1. Ротация по инициативе шлюза (например, по собственному таймеру)")
-	gwRotMsg, err := gw.InitiateRotationToDevice(dev.ID)
+	gwRotMsg, err := gw.InitiateAtomicRotationToDevice(dev.ID)
 	must(err)
-	must(dev.HandleRotationFromGateway(gwRotMsg))
+	gwAck, err := dev.HandleAtomicRotationFromGateway(gwRotMsg)
+	must(err)
+	must(gw.ApplyRotationAckFromDevice(dev.ID, gwAck))
 	fmt.Printf("  Ротация, инициированная шлюзом, выполнена. Ротаций всего: %d\n", dev.SessionStats().RotationCount)
 
 	section("4. Проверка целостности прошивки — устройство ЧЕСТНОЕ (прошивка не менялась)")

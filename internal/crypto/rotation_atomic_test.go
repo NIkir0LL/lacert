@@ -50,29 +50,10 @@ func keysEqual(t *testing.T, a, b *Session) bool {
 	return ka == kb
 }
 
-// TestNonAtomicRotationBreaksOnPacketLoss демонстрирует ИСХОДНУЮ проблему:
-// при старой ротации (session.Rotate сразу) потеря сообщения ротации приводит
-// к расхождению ключей — инициатор ушёл вперёд, получатель остался позади, и
-// связь рвётся без восстановления.
-func TestNonAtomicRotationBreaksOnPacketLoss(t *testing.T) {
-	devSess, gwSess, _, gwKEM := setupRotationPair(t)
-
-	// Устройство инициирует старую (неатомарную) ротацию: инкапсулирует под
-	// KEM-ключом шлюза, СРАЗУ обновляет свой ключ и «отправляет» сообщение.
-	msg, err := InitiateRotation(devSess, gwKEM.Pub)
-	if err != nil {
-		t.Fatalf("initiate old rotation: %v", err)
-	}
-	_ = msg // ...которое «теряется в сети» — шлюз его не получает.
-
-	// Теперь ключи разошлись: устройство на Ki+1, шлюз на Ki.
-	if keysEqual(t, devSess, gwSess) {
-		t.Fatal("expected keys to diverge after lost rotation message (demonstrating the bug)")
-	}
-	// Восстановиться нельзя: старый ключ устройства уже затёрт. Это и есть
-	// проблема, которую решает атомарная ротация.
-}
-
+// Прежняя (неатомарная) схема ломалась ровно на потере сообщения — инициатор
+// коммитил новый ключ до подтверждения, и стороны расходились без
+// восстановления. Схема и её демонстрационный тест сняты в 1.4.3.
+//
 // TestAtomicRotationSurvivesLostMessage: если сообщение ротации потеряно,
 // атомарная ротация НЕ рвёт связь — инициатор остаётся на старом ключе (не
 // закоммитил без ACK), стороны по-прежнему согласованы.

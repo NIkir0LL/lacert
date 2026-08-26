@@ -137,7 +137,7 @@ func TestNeedsRotationFalseWithoutSession(t *testing.T) {
 	}
 }
 
-func TestInitiateRotationRequiresGatewayKey(t *testing.T) {
+func TestInitiateAtomicRotationRequiresGatewayKey(t *testing.T) {
 	dev, _ := NewDevice("dev-nogw", crypto.SigECDSAP256, []byte("fw"))
 	// Есть сессия, но не задан публичный ключ шлюза.
 	msg1, _ := dev.StartHandshake()

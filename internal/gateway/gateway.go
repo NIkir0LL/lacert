@@ -666,52 +666,6 @@ func (g *Gateway) SessionIteration(deviceID string) uint64 {
 	return s.Iteration()
 }
 
-// HandleRotationFromDevice — устройство сам инициировал ротацию; шлюз
-// декапсулирует присланный шифротекст своим приватным KEM-ключом и обновляет
-// сессию.
-func (g *Gateway) HandleRotationFromDevice(deviceID string, msg *crypto.RotationMsg) error {
-	s, err := g.session(deviceID)
-	if err != nil {
-		return err
-	}
-
-	oldKey, _ := s.CurrentKey() // если CurrentKey вернёт ошибку (сессия уже закрыта), oldKey останется нулевым — это ляжет в журнал как часть неуспешной попытки ниже
-	rotErr := crypto.RespondToRotation(s, g.KEM.Priv, msg)
-	g.logRotationAttempt(deviceID, "device", s, oldKey, rotErr)
-	if rotErr != nil {
-		return rotErr
-	}
-	_ = g.Store.LogEvent(deviceID, "rotation", "ротация ключа, инициированная устройством")
-	return nil
-}
-
-// InitiateRotationToDevice — шлюз сам инициирует ротацию (например, по
-// собственному таймеру), инкапсулируя секрет под KEM-публичным ключом
-// устройства.
-func (g *Gateway) InitiateRotationToDevice(deviceID string) (*crypto.RotationMsg, error) {
-	s, err := g.session(deviceID)
-	if err != nil {
-		return nil, err
-	}
-	rec, err := g.Store.Get(deviceID)
-	if err != nil {
-		return nil, err
-	}
-	devKEMPub, err := rec.KEMPublicKey()
-	if err != nil {
-		return nil, err
-	}
-
-	oldKey, _ := s.CurrentKey()
-	msg, rotErr := crypto.InitiateRotation(s, devKEMPub)
-	g.logRotationAttempt(deviceID, "gateway", s, oldKey, rotErr)
-	if rotErr != nil {
-		return nil, rotErr
-	}
-	_ = g.Store.LogEvent(deviceID, "rotation", "ротация ключа, инициированная шлюзом")
-	return msg, nil
-}
-
 // ---------------------------------------------------------------------------
 // Атомарная ротация (варианты А+В): ротация с ACK и номером итерации.
 // Отличается от неатомарной тем, что инициатор (шлюз) не коммитит новый ключ,

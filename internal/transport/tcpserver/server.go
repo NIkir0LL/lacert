@@ -71,8 +71,8 @@ type connEntry struct {
 	// перемешивания при конкурентных вызовах — она используется как точка
 	// сериализации ВСЕЙ операции "вычислить следующий шаг протокола (новый
 	// Kyber-шифротекст при ротации / challenge при проверке прошивки) и
-	// сразу отправить его" в InitiateRotation/IssueFirmwareChallenge.
-	// Без этого два конкурентных вызова InitiateRotation для одного и того
+	// сразу отправить его" в InitiateAtomicRotation/IssueFirmwareChallenge.
+	// Без этого два конкурентных вызова InitiateAtomicRotation для одного и того
 	// же устройства могли бы вычислить шаги в одном порядке, а отправить
 	// кадры в другом (из-за планирования горутин ОС) — тогда устройство
 	// применило бы Mi в порядке, отличном от того, в котором шлюз обновлял
@@ -254,7 +254,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	done := make(chan struct{})
 	go func() {
-		s.wg.Wait()
+		// Обслуживающие горутины здесь не ждём: их порождает только Serve, и
+		// его собственный финальный s.wg.Wait() их и дожидается перед
+		// выходом, так что ожидание serveExited уже включает их все. Прямой
+		// s.wg.Wait() в стороже гонялся с s.wg.Add(1) при приёме соединения
+		// из очереди уже закрытого listener — Add при нулевом счётчике
+		// одновременно с началом Wait это задокументированное неправильное
+		// использование WaitGroup, и детектор гонок ловил его честно.
 		if started {
 			<-s.serveExited
 		}
@@ -427,7 +433,7 @@ func (s *Server) serveSession(conn net.Conn, entry *connEntry, deviceID string) 
 		case wire.TypeRotation:
 			// Устаревшая НЕатомарная ротация (см. PROTOCOL_SPEC, тип 4:
 			// «не используется»). Приём её здесь был опасен: кадр ничем не
-			// аутентифицирован, а Session.Rotate() не трогает счётчик
+			// аутентифицирован, а применение ротации не трогает счётчик
 			// iteration — то есть один такой кадр, отправленный кем угодно,
 			// менял ключ шлюза, не сдвигая номер итерации, и навсегда
 			// рассинхронизировал атомарную ротацию с устройством. Ни прошивка,
@@ -511,32 +517,10 @@ func (s *Server) serveSession(conn net.Conn, entry *connEntry, deviceID string) 
 	}
 }
 
-// InitiateRotation — серверный цикл шлюза вызывает это для устройства,
-// сессия которого (по таймеру/счётчику) нуждается в ротации, и шлюз сам
-// выступает инициатором. Вычисление нового шага протокола и его отправка
-// выполняются как единая критическая секция (entry.ioMu) — см. комментарий
-// к connEntry.ioMu о том, почему это важно при конкурентных вызовах для
-// одного устройства.
-func (s *Server) InitiateRotation(deviceID string) error {
-	entry, err := s.activeConn(deviceID)
-	if err != nil {
-		return err
-	}
-	entry.ioMu.Lock()
-	defer entry.ioMu.Unlock()
-
-	rotMsg, err := s.GW.InitiateRotationToDevice(deviceID)
-	if err != nil {
-		return err
-	}
-	return writeFrameWithDeadline(entry.conn, wire.TypeRotation, wire.EncodeRotation(rotMsg))
-}
-
 // InitiateAtomicRotation — атомарная ротация, инициированная шлюзом. Вычисляет
 // RotationMsgV2 и отправляет его устройству; новый ключ применится только
 // после того, как устройство пришлёт RotationAck (обрабатывается в
-// serveSession как TypeRotationAck). Как и InitiateRotation, весь шаг
-// сериализуется через ioMu.
+// serveSession как TypeRotationAck). Весь шаг сериализуется через ioMu.
 func (s *Server) InitiateAtomicRotation(deviceID string) error {
 	entry, err := s.activeConn(deviceID)
 	if err != nil {

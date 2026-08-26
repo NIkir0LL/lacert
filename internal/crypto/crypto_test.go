@@ -168,15 +168,18 @@ func TestRotationPFS_PCS(t *testing.T) {
 
 	oldDevKey, _ := devSession.CurrentKey()
 
-	// Шлюз инициирует ротацию, инкапсулируя секрет под KEM-pubkey устройства.
-	rotMsg, err := InitiateRotation(gwSession, devKEM.Pub)
+	// Шлюз инициирует атомарную ротацию, инкапсулируя секрет под KEM-pubkey
+	// устройства; устройство отвечает ACK, шлюз коммитит по подтверждению.
+	rotMsg, err := InitiateRotationAtomic(gwSession, devKEM.Pub)
 	if err != nil {
 		t.Fatalf("initiate rotation: %v", err)
 	}
-
-	// Устройство отвечает декапсуляцией своим приватным ключом.
-	if err := RespondToRotation(devSession, devKEM.Priv, rotMsg); err != nil {
+	ack, err := RespondToRotationAtomic(devSession, devKEM.Priv, rotMsg)
+	if err != nil {
 		t.Fatalf("respond to rotation: %v", err)
+	}
+	if err := ApplyRotationAck(gwSession, ack); err != nil {
+		t.Fatalf("apply rotation ack: %v", err)
 	}
 	_ = gwKEM // зарезервирован для обратной ротации (устройство -> шлюз), не используется в этом тесте
 

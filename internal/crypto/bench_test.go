@@ -172,11 +172,15 @@ func BenchmarkRotationStep(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		msg, err := InitiateRotation(peerSession, devKEM.Pub)
+		msg, err := InitiateRotationAtomic(peerSession, devKEM.Pub)
 		if err != nil {
 			b.Fatal(err)
 		}
-		if err := RespondToRotation(session, devKEM.Priv, msg); err != nil {
+		ack, err := RespondToRotationAtomic(session, devKEM.Priv, msg)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if err := ApplyRotationAck(peerSession, ack); err != nil {
 			b.Fatal(err)
 		}
 	}

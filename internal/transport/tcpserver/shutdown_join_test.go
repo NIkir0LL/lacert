@@ -25,6 +25,26 @@ func TestShutdownWaitsForServeExit(t *testing.T) {
 	}
 	go func() { _ = srv.Serve(ln) }()
 
+	// Дожидаемся фактического старта цикла accept. Без этого Shutdown может
+	// отработать по ещё не начавшемуся Serve — флаг serveStarted ложен,
+	// ожидание serveExited пропускается, и строгая проверка ниже мерила бы
+	// расторопность планировщика, а не присоединение. Ровно так тест и упал
+	// на машине автора, где горутина стартовала позже Shutdown. Случай
+	// «Shutdown до первого Serve» покрыт соседним тестом отдельно.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		srv.mu.Lock()
+		started := srv.serveStarted
+		srv.mu.Unlock()
+		if started {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Serve не стартовал за отведённое время")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
 	// Даём циклу accept настоящую работу — соединение принимается и сразу
 	// закрывается с нашей стороны, обслуживающая горутина завершится на ошибке
 	// чтения. Держать его открытым нельзя: Shutdown закрывает только

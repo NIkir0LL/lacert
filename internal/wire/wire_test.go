@@ -111,17 +111,6 @@ func TestMsg3RoundTrip(t *testing.T) {
 	}
 }
 
-func TestRotationRoundTrip(t *testing.T) {
-	r := &crypto.RotationMsg{KEMCiphertext: bytes.Repeat([]byte{0xAB}, 1568)}
-	decoded, err := DecodeRotation(EncodeRotation(r))
-	if err != nil {
-		t.Fatalf("decode rotation: %v", err)
-	}
-	if !bytes.Equal(decoded.KEMCiphertext, r.KEMCiphertext) {
-		t.Fatal("ciphertext mismatch")
-	}
-}
-
 func TestDataRoundTrip(t *testing.T) {
 	nonce := bytes.Repeat([]byte{0x01}, 12)
 	ciphertext := bytes.Repeat([]byte{0x02}, 100)
@@ -228,7 +217,6 @@ func TestDecodersDoNotPanicOnAdversarialPayloads(t *testing.T) {
 		"DecodeMsg1":              func(b []byte) error { _, err := DecodeMsg1(b); return err },
 		"DecodeMsg2":              func(b []byte) error { _, err := DecodeMsg2(b); return err },
 		"DecodeMsg3":              func(b []byte) error { _, err := DecodeMsg3(b); return err },
-		"DecodeRotation":          func(b []byte) error { _, err := DecodeRotation(b); return err },
 		"DecodeData":              func(b []byte) error { _, _, err := DecodeData(b); return err },
 		"DecodeFirmwareChallenge": func(b []byte) error { _, err := DecodeFirmwareChallenge(b); return err },
 		"DecodeFirmwareResponse":  func(b []byte) error { _, err := DecodeFirmwareResponse(b); return err },

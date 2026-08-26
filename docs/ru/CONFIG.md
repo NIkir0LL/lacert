@@ -149,7 +149,7 @@ ACK_TIMEOUT                откат зависшей ротации, засч�
 |-----------|----------------|-----------|
 | `LACERT_GATEWAY_HTTP` | `devicesim`, `stresstest` | адрес REST шлюза (по умолчанию `http://localhost:8080`) |
 | `LACERT_GATEWAY_TCP` | `devicesim`, `stresstest` | адрес TCP шлюза (по умолчанию `localhost:7700`) |
-| `LACERT_DEVICE_ID` | `devicesim` | идентификатор симулируемого устройства |
+| `LACERT_DEVICE_ID` | `xiao-esp32c6-sim-1` | идентификатор симулируемого устройства |
 | `LACERT_PROFILE` | `devicesim` | профиль датчиков: `climate`, `power`, `pressure`, `fuel`, `motor`. Если не задан — выбирается детерминированно по `LACERT_DEVICE_ID` |
 | `LACERT_STRESS_WAIT` | `stresstest` | пауза перед началом сценариев атак |
 | `LACERT_STRESS_D4_DELAY` | `stresstest` | задержка ответа в сценарии D4 (проверка, что устаревший challenge отклоняется) |

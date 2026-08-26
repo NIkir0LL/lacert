@@ -188,7 +188,10 @@ SLH-DSA provides post-quantum security.
 
 Supporting protocol operations on the same machine: ML-KEM-1024 key-pair
 generation — 36.5 µs, encapsulation — 12.9 µs, decapsulation — 19.4 µs, a key
-rotation step — 34.7 µs, packet encryption — 0.83 µs.
+rotation step — 34.7 µs (measured for the former non-atomic scheme — since
+1.4.3 the benchmark exercises the atomic acknowledged one, the dominating
+ML-KEM exchange is the same, a re-measurement is planned), packet
+encryption — 0.83 µs.
 
 **Observation 1. With SLH-DSA only signing is expensive.** Verification takes
 232.5 µs and is merely four times slower than ECDSA, whereas signing takes

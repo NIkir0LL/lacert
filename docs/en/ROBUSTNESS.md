@@ -36,8 +36,9 @@ Carried through every layer: `wire` (the `TypeRotationV2` and `TypeRotationAck`
 types), `device`, `gateway`, `tcpclient`, `tcpserver`.
 
 **Tests.** `internal/crypto/rotation_atomic_test.go` (including
-`TestNonAtomicRotationBreaksOnPacketLoss`, which demonstrates the original
-problem), end-to-end tests in `internal/transport/tcpserver`.
+`TestAtomicRotationSurvivesLostMessage` — a lost message does not break the
+link, the demo test of the original problem was removed in 1.4.3 together
+with the scheme itself), end-to-end tests in `internal/transport/tcpserver`.
 
 ## 3. Timeout of an unfinished rotation
 
@@ -122,7 +123,8 @@ the improvements.
 rotation with ACKs, but the device emulator kept calling the old
 `RotateIfNeeded()` (non-atomic, vulnerable to packet loss). As a result the
 emulated devices were not exercising the new, safe path.
-**Fix.** The emulator was moved to `RotateIfNeededAtomic()`. Verified by a live
+**Fix.** The emulator was moved to `RotateIfNeededAtomic()`, and the old
+`RotateIfNeeded` itself was removed in 1.4.3. Verified by a live
 run: rotation completes with an ACK and the iteration number increases.
 
 ### 2. Duplicated `device_id` field in structured logs
@@ -446,7 +448,8 @@ device halted key rotation for ALL the others.
 
 ### 5. Other audit findings
 - The obsolete non-atomic rotation (type 4) is no longer accepted: the frame is
-  not authenticated in any way, and `Session.Rotate()` does not advance the
+  not authenticated in any way, and the former immediate apply did not advance
+  the
   iteration counter, so a single such frame would desynchronize atomic rotation.
 - `ApplyRotationAck` checks and commits under a single mutex acquisition
   (previously there was a window between the two).

@@ -153,7 +153,7 @@ These belong to the helper programs under `cmd/` rather than to the gateway.
 |----------|---------|---------|
 | `LACERT_GATEWAY_HTTP` | `devicesim`, `stresstest` | gateway REST address (default `http://localhost:8080`) |
 | `LACERT_GATEWAY_TCP` | `devicesim`, `stresstest` | gateway TCP address (default `localhost:7700`) |
-| `LACERT_DEVICE_ID` | `devicesim` | identifier of the simulated device |
+| `LACERT_DEVICE_ID` | `xiao-esp32c6-sim-1` | identifier of the simulated device |
 | `LACERT_PROFILE` | `devicesim` | sensor profile: `climate`, `power`, `pressure`, `fuel`, `motor`. If unset, chosen deterministically from `LACERT_DEVICE_ID` |
 | `LACERT_STRESS_WAIT` | `stresstest` | pause before the attack scenarios begin |
 | `LACERT_STRESS_D4_DELAY` | `stresstest` | response delay in scenario D4 (verifies that a stale challenge is refused) |
