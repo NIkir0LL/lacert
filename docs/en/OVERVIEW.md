@@ -233,7 +233,16 @@ go build ./...        # build everything
 go vet ./...          # static analysis
 go test ./...         # unit tests (14 packages)
 go test -race ./...   # race detector
+golangci-lint run     # linter set, configured in .golangci.yml
 ```
+
+The linter is installed separately (see `https://golangci-lint.run`) and must be
+from the 2.x line — the configuration uses schema 2, which 1.x cannot read. The
+rest comes with Go. The set in `.golangci.yml` enables checks that have already
+found defects in this project. Two `govet` checks are disabled — shadowing of
+`err` in the `if err := f(); err != nil` idiom and struct field alignment, both
+of which disagree with the established style. The reason for every decision is
+recorded in the file itself.
 
 All of the above at once, together with the benchmarks and repository checks:
 

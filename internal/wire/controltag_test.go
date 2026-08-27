@@ -43,16 +43,16 @@ func TestRotationFramesRoundTrip(t *testing.T) {
 // ключа, должен отвергаться. Прежде вброшенное подтверждение шлюз принимал,
 // применял ротацию, и ключи расходились с устройством.
 func TestControlFramesRejectWrongKey(t *testing.T) {
-	real := testKey(0x42)
+	realKey := testKey(0x42)
 	attacker := testKey(0x99)
 
 	ack := EncodeRotationAck(&crypto.RotationAck{Iteration: 3}, attacker)
-	if _, err := DecodeRotationAck(ack, real); err == nil {
+	if _, err := DecodeRotationAck(ack, realKey); err == nil {
 		t.Error("подтверждение с чужим ключом должно отвергаться")
 	}
 
 	rot := EncodeRotationV2(&crypto.RotationMsgV2{Iteration: 3, KEMCiphertext: []byte("ct")}, attacker)
-	if _, err := DecodeRotationV2(rot, real); err == nil {
+	if _, err := DecodeRotationV2(rot, realKey); err == nil {
 		t.Error("кадр ротации с чужим ключом должен отвергаться")
 	}
 }

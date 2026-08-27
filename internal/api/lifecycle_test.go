@@ -93,6 +93,7 @@ func TestReregisterRejectsIdentifierMismatch(t *testing.T) {
 		}
 	}
 	victimBefore, _ := gw.Store.Get("api-victim")
+	targetBefore, _ := gw.Store.Get("api-target")
 
 	// В теле одно устройство, в пути другое.
 	body := enrolBody(t, gw, "api-victim", firmware)
@@ -107,7 +108,7 @@ func TestReregisterRejectsIdentifierMismatch(t *testing.T) {
 		t.Error("ключи устройства из тела запроса меняться не должны")
 	}
 	targetAfter, _ := gw.Store.Get("api-target")
-	if !bytes.Equal(targetAfter.IdentityPub, targetAfter.IdentityPub) {
+	if !bytes.Equal(targetBefore.IdentityPub, targetAfter.IdentityPub) {
 		t.Error("ключи устройства из пути тоже меняться не должны")
 	}
 }

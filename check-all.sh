@@ -41,7 +41,23 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-say "4. Тесты"
+# Линтер не входит в Go и ставится отдельно, поэтому его отсутствие — не
+# провал проверки, а предупреждение: на машине без него остальные проверки
+# всё равно должны отработать.
+say "4. Линтер"
+if command -v golangci-lint >/dev/null; then
+  if out=$(golangci-lint run --timeout 5m ./... 2>&1); then
+    ok "golangci-lint — замечаний нет"
+  else
+    bad "golangci-lint нашёл замечания:"; printf '%s\n' "$out" | head -15 | sed 's/^/      /'; FAILED=1
+  fi
+else
+  warn "golangci-lint не установлен, проверка пропущена"
+  inf "установка: https://golangci-lint.run"
+fi
+
+# ─────────────────────────────────────────────────────────────
+say "5. Тесты"
 tout=$(go test ./... -count=1 2>&1)
 passed=$(printf '%s\n' "$tout" | grep -c '^ok')
 failed=$(printf '%s\n' "$tout" | grep -c '^FAIL')
@@ -67,7 +83,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-say "5. Детектор гонок данных"
+say "6. Детектор гонок данных"
 if out=$(go test -race ./internal/... -count=1 2>&1); then
   ok "go test -race — гонок не обнаружено"
 else
@@ -80,31 +96,31 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-say "6. Покрытие тестами"
+say "7. Покрытие тестами"
 go test ./internal/... -cover -count=1 2>/dev/null \
   | grep -E 'coverage:' | sed 's/^/    /' | head -15
 
 # ─────────────────────────────────────────────────────────────
-say "7. Бенчмарки подписи"
+say "8. Бенчмарки подписи"
 inf "(это главные цифры для сравнения алгоритмов)"
 go test ./internal/crypto/ -bench 'BenchmarkSign|BenchmarkVerify|BenchmarkGenerateIdentity' \
   -benchtime=10x -benchmem -run '^$' -count=1 2>&1 \
   | grep -E '^Benchmark' | sed 's/-[0-9]*\s\+/  /' | sed 's/^/    /'
 
 # ─────────────────────────────────────────────────────────────
-say "8. Бенчмарки ML-KEM, шифрования и ротации"
+say "9. Бенчмарки ML-KEM, шифрования и ротации"
 go test ./internal/crypto/ -bench 'GenerateKEMKeyPair|Encapsulate|Decapsulate|EncryptPacket|RotationStep' \
   -benchtime=50x -run '^$' -count=1 2>&1 \
   | grep -E '^Benchmark' | sed 's/-[0-9]*\s\+/  /' | sed 's/^/    /'
 
-say "9. Бенчмарки полного рукопожатия"
+say "10. Бенчмарки полного рукопожатия"
 inf "(ECDSA против SLH-DSA — весь протокол целиком)"
 go test ./internal/crypto/ -bench 'FullHandshake' \
   -benchtime=5x -run '^$' -count=1 2>&1 \
   | grep -E '^Benchmark' | sed 's/-[0-9]*\s\+/  /' | sed 's/^/    /' 
 
 # ─────────────────────────────────────────────────────────────
-say "10. Документация"
+say "11. Документация"
 ru=$(ls docs/ru/*.md 2>/dev/null | wc -l)
 en=$(ls docs/en/*.md 2>/dev/null | wc -l)
 [ "$ru" = "$en" ] && [ "$ru" -gt 0 ] \
@@ -131,7 +147,7 @@ print(f"  \033[1;32m✓\033[0m ссылок проверено {tot}, битых
 PY
 
 # ─────────────────────────────────────────────────────────────
-say "11. Сверка документации с кодом"
+say "12. Сверка документации с кодом"
 if [ -f check-docs.sh ]; then
   if bash check-docs.sh >/tmp/lacert-check-docs.log 2>&1; then
     ok "документация сходится с кодом"
@@ -146,7 +162,7 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────
-say "12. Гигиена репозитория"
+say "13. Гигиена репозитория"
 n=$(grep -rniE 'диплом|магистр|отчёт по практике' --include='*.md' --include='*.go' --include='*.c' . 2>/dev/null \
     | grep -v vendor | grep -v 'firmware/components' | wc -l)
 [ "$n" = "0" ] && ok "учебных упоминаний нет" || { bad "учебных упоминаний: $n"; }

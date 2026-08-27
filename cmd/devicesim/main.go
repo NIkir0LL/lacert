@@ -23,7 +23,15 @@ import (
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	if err := run(logger); err != nil {
+		logger.Error("эмулятор устройства завершился с ошибкой", "err", err)
+		os.Exit(1)
+	}
+}
 
+// run вынесен из main, чтобы отложенные вызовы отрабатывали до выхода:
+// os.Exit завершает процесс немедленно и defer уже не выполняет.
+func run(logger *slog.Logger) error {
 	cfg := emulator.Config{
 		GatewayHTTP:  getenv("LACERT_GATEWAY_HTTP", "http://localhost:8080"),
 		GatewayTCP:   getenv("LACERT_GATEWAY_TCP", "localhost:7700"),
@@ -43,10 +51,7 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	if err := emulator.Run(ctx, cfg); err != nil {
-		logger.Error("эмулятор устройства завершился с ошибкой", "err", err)
-		os.Exit(1)
-	}
+	return emulator.Run(ctx, cfg)
 }
 
 func getenv(key, def string) string {

@@ -121,10 +121,11 @@ func hexField(fields map[string]string, key string) ([]byte, error) {
 // efuse-ключом.
 func ComputeChecksum(deviceID string, identityPub, kemPub, firmwareHash []byte) string {
 	h := blake3.New()
-	h.Write([]byte(deviceID))
-	h.Write(identityPub)
-	h.Write(kemPub)
-	h.Write(firmwareHash)
+	// Запись в хеш ошибку не возвращает, отбрасываем явно.
+	_, _ = h.Write([]byte(deviceID))
+	_, _ = h.Write(identityPub)
+	_, _ = h.Write(kemPub)
+	_, _ = h.Write(firmwareHash)
 	sum := h.Sum(nil)
 	return hex.EncodeToString(sum)[:8]
 }

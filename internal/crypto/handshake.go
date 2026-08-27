@@ -154,16 +154,18 @@ func FinalizeHandshake(
 
 func transcriptOf(msg1 *HandshakeMsg1, msg2 *HandshakeMsg2) []byte {
 	h := blake3.New()
-	h.Write(msg1.Bytes())
-	h.Write(msg2.Bytes())
+	// Запись в хеш ошибку не возвращает, отбрасываем явно.
+	_, _ = h.Write(msg1.Bytes())
+	_, _ = h.Write(msg2.Bytes())
 	return h.Sum(nil)
 }
 
 func confirmationValue(transcript, k0 []byte) []byte {
 	h := blake3.New()
-	h.Write(transcript)
-	h.Write([]byte("confirm"))
-	h.Write(k0)
+	// Запись в хеш ошибку не возвращает, отбрасываем явно.
+	_, _ = h.Write(transcript)
+	_, _ = h.Write([]byte("confirm"))
+	_, _ = h.Write(k0)
 	return h.Sum(nil)
 }
 
@@ -178,7 +180,7 @@ func writeFramed(buf *bytes.Buffer, data []byte) {
 		panic("crypto: field too large for 2-byte length prefix")
 	}
 	var lenBuf [2]byte
-	binary.BigEndian.PutUint16(lenBuf[:], uint16(len(data)))
+	binary.BigEndian.PutUint16(lenBuf[:], uint16(len(data))) //nolint:gosec // длина проверена паникой выше
 	buf.Write(lenBuf[:])
 	buf.Write(data)
 }

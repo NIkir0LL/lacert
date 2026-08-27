@@ -61,14 +61,17 @@ var ErrControlTagMismatch = errors.New("control frame authentication tag mismatc
 // (ноль для кадров, к ротации не относящихся), body — содержимое кадра без
 // метки.
 func ComputeControlTag(sessionKey []byte, frameType byte, iteration uint64, body []byte) []byte {
+	// Запись в хеш ошибку вернуть не может (io.Writer у hash.Hash так
+	// устроен), поэтому результат отбрасывается явно — молчаливый вызов
+	// линтер справедливо считает пропущенной проверкой.
 	h := blake3.New()
-	h.Write(sessionKey)
-	h.Write([]byte{frameType})
+	_, _ = h.Write(sessionKey)
+	_, _ = h.Write([]byte{frameType})
 	var it [8]byte
 	binary.BigEndian.PutUint64(it[:], iteration)
-	h.Write(it[:])
-	h.Write(body)
-	h.Write([]byte(controlTagSeparator))
+	_, _ = h.Write(it[:])
+	_, _ = h.Write(body)
+	_, _ = h.Write([]byte(controlTagSeparator))
 	return h.Sum(nil)[:ControlTagSize]
 }
 

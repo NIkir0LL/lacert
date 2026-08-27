@@ -38,15 +38,15 @@ const (
 // срез при каждом новом пакете телеметрии (O(n) на запись, десятки мегабайт
 // копирования в секунду). Поэтому даём запас в slack элементов и переносим хвост
 // только когда он превышен — тогда копирование амортизируется и в среднем стоит
-// O(1) на запись. Длина журнала при этом колеблется между max и max+slack, что
+// O(1) на запись. Длина журнала при этом колеблется между limit и limit+slack, что
 // для ограничения памяти совершенно достаточно.
-func trimOldest[T any](items []T, max int) []T {
+func trimOldest[T any](items []T, limit int) []T {
 	const slack = 4096
-	if len(items) <= max+slack {
+	if len(items) <= limit+slack {
 		return items
 	}
-	drop := len(items) - max
-	kept := make([]T, max, max+slack)
+	drop := len(items) - limit
+	kept := make([]T, limit, limit+slack)
 	copy(kept, items[drop:])
 	return kept
 }

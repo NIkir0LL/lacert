@@ -327,7 +327,7 @@ func parseSigAlgorithm(s string) (crypto.SigAlgorithm, error) {
 
 // --- handlers ---
 
-func (s *Server) listDevices(w http.ResponseWriter, r *http.Request) {
+func (s *Server) listDevices(w http.ResponseWriter, _ *http.Request) {
 	recs, err := s.GW.Store.List()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
@@ -543,7 +543,7 @@ func (s *Server) requestAuthorized(r *http.Request) bool {
 // завершено/отклонено, ротаций удалось/провалилось, проверок прошивки прошло/
 // провалено/отклонено, отбито replay и отозвано устройств. Даёт мгновенную
 // сводку без обхода всего журнала событий.
-func (s *Server) getMetrics(w http.ResponseWriter, r *http.Request) {
+func (s *Server) getMetrics(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, s.GW.Metrics.Snapshot())
 }
 

@@ -57,10 +57,11 @@ func deriveNextKey(currentKey [sessionKeySize]byte, mi []byte, iteration uint64)
 	binary.BigEndian.PutUint64(itBuf[:], iteration)
 
 	h := blake3.New()
-	h.Write(currentKey[:])
-	h.Write(mi)
-	h.Write(itBuf[:])
-	h.Write([]byte(rotateSeparator))
+	// Запись в хеш ошибку не возвращает, отбрасываем явно.
+	_, _ = h.Write(currentKey[:])
+	_, _ = h.Write(mi)
+	_, _ = h.Write(itBuf[:])
+	_, _ = h.Write([]byte(rotateSeparator))
 	return h.Sum(nil)
 }
 

@@ -74,7 +74,7 @@ func registerAndConnect(t *testing.T, addr string, gw *gateway.Gateway, deviceID
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	go client.Listen() //nolint:errcheck
+	go client.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 	return dev, client
 }
 

@@ -134,7 +134,8 @@ func (d *Device) SendData(plaintext []byte) (nonce, ciphertext []byte, err error
 		return nil, nil, err
 	}
 	stats := d.session.Stats()
-	nonce, ciphertext, err = crypto.EncryptPacket(key, uint32(stats.PacketCount), plaintext)
+	// Счётчик пакетов обнуляется при каждой ротации, задолго до предела uint32.
+	nonce, ciphertext, err = crypto.EncryptPacket(key, uint32(stats.PacketCount), plaintext) //nolint:gosec // счётчик сбрасывается ротацией
 	if err != nil {
 		return nil, nil, err
 	}

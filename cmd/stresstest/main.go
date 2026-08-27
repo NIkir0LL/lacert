@@ -45,6 +45,16 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Printf("ОШИБКА: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// run вынесен из main ради отложенного закрытия соединений: os.Exit завершает
+// процесс немедленно, и defer до него не доходит — стенд оставлял бы за собой
+// открытые сессии на шлюзе.
+func run() error {
 	httpBase := getenv("LACERT_GATEWAY_HTTP", "http://localhost:8080")
 	tcpAddr := getenv("LACERT_GATEWAY_TCP", "localhost:7700")
 	adminToken := os.Getenv("LACERT_ADMIN_TOKEN")
@@ -56,14 +66,12 @@ func main() {
 
 	gwKEM, err := emulator.FetchGatewayKEMPublicKey(httpBase)
 	if err != nil {
-		fmt.Printf("ОШИБКА: не удалось получить ключ шлюза (%v).\nШлюз запущен? Проверьте LACERT_GATEWAY_HTTP.\n", err)
-		os.Exit(1)
+		return fmt.Errorf("не удалось получить ключ шлюза (%w).\nШлюз запущен? Проверьте LACERT_GATEWAY_HTTP", err)
 	}
 
 	before, err := fetchMetrics(httpBase, adminToken)
 	if err != nil {
-		fmt.Printf("ОШИБКА: не удалось прочитать метрики: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("не удалось прочитать метрики: %w", err)
 	}
 	fmt.Println("Метрики ДО:")
 	printMetrics(before)
@@ -107,8 +115,7 @@ func main() {
 
 	after, err := fetchMetrics(httpBase, adminToken)
 	if err != nil {
-		fmt.Printf("ОШИБКА: не удалось прочитать метрики после: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("не удалось прочитать метрики после: %w", err)
 	}
 	fmt.Println("\nМетрики ПОСЛЕ:")
 	printMetrics(after)
@@ -125,6 +132,7 @@ func main() {
 	printDelta("устройств отозвано    ", before.DevicesRevoked, after.DevicesRevoked)
 
 	fmt.Println("\nГотово. Откройте вкладку «метрики» на дашборде, чтобы увидеть те же значения.")
+	return nil
 }
 
 type runner struct {
@@ -478,7 +486,8 @@ func printMetrics(m metrics) {
 }
 
 func printDelta(label string, before, after uint64) {
-	delta := int64(after) - int64(before)
+	// Счётчики метрик за один прогон стенда далеки от предела int64.
+	delta := int64(after) - int64(before) //nolint:gosec // счётчики стенда малы
 	sign := "+"
 	if delta < 0 {
 		sign = ""

@@ -47,7 +47,8 @@ func WriteFrame(w io.Writer, msgType byte, payload []byte) error {
 		return fmt.Errorf("payload too large: %d > %d", len(payload), MaxFrameSize)
 	}
 	header := make([]byte, 5)
-	binary.BigEndian.PutUint32(header[0:4], uint32(len(payload)))
+	// Длина проверена выше пределом MaxFrameSize, приведение безопасно.
+	binary.BigEndian.PutUint32(header[0:4], uint32(len(payload))) //nolint:gosec // длина ограничена MaxFrameSize
 	header[4] = msgType
 	if _, err := w.Write(header); err != nil {
 		return fmt.Errorf("write frame header: %w", err)
@@ -89,7 +90,7 @@ func ReadFrame(r io.Reader) (msgType byte, payload []byte, err error) {
 // узнать о нём здесь, чем ловить рассинхрон разбора на проводе.
 const maxFieldSize = 0xFFFF
 
-func putFramed(buf []byte, data []byte) []byte {
+func putFramed(buf, data []byte) []byte {
 	if len(data) > maxFieldSize {
 		// Кодировщики wire не возвращают ошибку (все вызовы идут с полями
 		// заведомо известного размера: ключи, шифротексты, подписи), поэтому
@@ -99,7 +100,7 @@ func putFramed(buf []byte, data []byte) []byte {
 		panic("wire: field too large for 2-byte length prefix")
 	}
 	var lenBuf [2]byte
-	binary.BigEndian.PutUint16(lenBuf[:], uint16(len(data)))
+	binary.BigEndian.PutUint16(lenBuf[:], uint16(len(data))) //nolint:gosec // длина проверена паникой выше
 	buf = append(buf, lenBuf[:]...)
 	buf = append(buf, data...)
 	return buf
@@ -223,7 +224,7 @@ func encodeRotationV2Body(m *crypto.RotationMsgV2) []byte {
 //
 // Метка проверяется до разбора содержимого: кадр от того, кто не знает
 // сеансового ключа, отбрасывается целиком, и разбирать его незачем.
-func DecodeRotationV2(payload []byte, sessionKey []byte) (*crypto.RotationMsgV2, error) {
+func DecodeRotationV2(payload, sessionKey []byte) (*crypto.RotationMsgV2, error) {
 	if len(payload) < 8+crypto.ControlTagSize {
 		return nil, fmt.Errorf("decode rotation v2: payload too short")
 	}
@@ -257,7 +258,7 @@ func EncodeRotationAck(a *crypto.RotationAck, sessionKey []byte) []byte {
 	return append(body[:], tag...)
 }
 
-func DecodeRotationAck(payload []byte, sessionKey []byte) (*crypto.RotationAck, error) {
+func DecodeRotationAck(payload, sessionKey []byte) (*crypto.RotationAck, error) {
 	if len(payload) < 8+crypto.ControlTagSize {
 		return nil, fmt.Errorf("decode rotation ack: payload too short")
 	}

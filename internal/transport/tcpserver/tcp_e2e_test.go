@@ -83,7 +83,7 @@ func TestTCPHandshakeAndData(t *testing.T) {
 
 	var mu sync.Mutex
 	var received [][]byte
-	srv.OnData = func(deviceID string, plaintext []byte) {
+	srv.OnData = func(_ string, plaintext []byte) {
 		mu.Lock()
 		received = append(received, append([]byte{}, plaintext...))
 		mu.Unlock()
@@ -132,7 +132,7 @@ func TestTCPClientAtomicRotationDeliversDataToServer(t *testing.T) {
 
 	var mu sync.Mutex
 	var received [][]byte
-	srv.OnData = func(deviceID string, plaintext []byte) {
+	srv.OnData = func(_ string, plaintext []byte) {
 		mu.Lock()
 		received = append(received, append([]byte(nil), plaintext...))
 		mu.Unlock()
@@ -143,7 +143,7 @@ func TestTCPClientAtomicRotationDeliversDataToServer(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 	defer client.Close()
-	go client.Listen() //nolint:errcheck
+	go client.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	if err := client.SendData([]byte("pre-rotation")); err != nil {
 		t.Fatalf("send data: %v", err)
@@ -181,7 +181,7 @@ func TestTCPGatewayInitiatedRotationAndFirmwareCheck(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 	defer client.Close()
-	go client.Listen() //nolint:errcheck
+	go client.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	// Шлюз сам инициирует ротацию через установленное соединение.
 	waitFor(t, time.Second, func() bool { return len(srv.ActiveDeviceIDs()) == 1 })
@@ -229,7 +229,7 @@ func TestTCPDeviceReconnectDoesNotLoseAddressing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first dial: %v", err)
 	}
-	go client1.Listen() //nolint:errcheck
+	go client1.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	waitFor(t, time.Second, func() bool { return len(srv.ActiveDeviceIDs()) == 1 })
 
@@ -241,7 +241,7 @@ func TestTCPDeviceReconnectDoesNotLoseAddressing(t *testing.T) {
 		t.Fatalf("second dial (reconnect): %v", err)
 	}
 	defer client2.Close()
-	go client2.Listen() //nolint:errcheck
+	go client2.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	// Даём старой горутине время заметить закрытие старого сокета и
 	// (потенциально, при наличии бага) удалить запись о новом соединении.
@@ -285,7 +285,7 @@ func TestTCPConcurrentServerWrites(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 	defer client.Close()
-	go client.Listen() //nolint:errcheck
+	go client.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	waitFor(t, time.Second, func() bool { return len(srv.ActiveDeviceIDs()) == 1 })
 
@@ -339,7 +339,7 @@ func TestTCPServerShutdownClosesConnections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
-	go client.Listen() //nolint:errcheck
+	go client.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	waitFor(t, time.Second, func() bool { return len(srv.ActiveDeviceIDs()) == 1 })
 
@@ -466,7 +466,7 @@ func TestTCPServerSurvivesRawGarbageOnPort(t *testing.T) {
 		t.Fatalf("dial after garbage traffic: server should still be alive and accepting connections, got %v", err)
 	}
 	defer client.Close()
-	go client.Listen() //nolint:errcheck
+	go client.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	if err := client.SendData([]byte("still-working-after-garbage")); err != nil {
 		t.Fatalf("send data after garbage traffic: %v", err)
@@ -488,7 +488,7 @@ func TestTCPDeviceInitiatedAtomicRotation(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 	defer client.Close()
-	go client.Listen() //nolint:errcheck
+	go client.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	// Отправим пару пакетов, затем инициируем атомарную ротацию.
 	for i := 0; i < 3; i++ {
@@ -534,7 +534,7 @@ func TestTCPGatewayInitiatedAtomicRotation(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 	defer client.Close()
-	go client.Listen() //nolint:errcheck
+	go client.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	// Установим сессию, отправив один пакет (гарантирует, что соединение
 	// зарегистрировано на сервере).

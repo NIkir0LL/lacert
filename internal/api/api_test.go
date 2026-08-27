@@ -574,7 +574,7 @@ func TestDeviceResponseReflectsOnlineStatusFromTCPServer(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 	defer client.Close()
-	go client.Listen() //nolint:errcheck
+	go client.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	deadline := time.Now().Add(2 * time.Second)
 	for {

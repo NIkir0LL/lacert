@@ -154,7 +154,9 @@ func deterministicSeed(deviceID string, profile Profile) int64 {
 	_, _ = h.Write([]byte(deviceID))
 	_, _ = h.Write([]byte("|"))
 	_, _ = h.Write([]byte(profile))
-	return int64(h.Sum64())
+	// Усечение хеша в знаковое здесь намеренное: значение нужно как зерно
+	// генератора, а не как число с определённым знаком.
+	return int64(h.Sum64()) //nolint:gosec // зерно генератора, усечение намеренное
 }
 
 // Next формирует один payload в формате "key=value;key2=value2..." (см.

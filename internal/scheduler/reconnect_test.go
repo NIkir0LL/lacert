@@ -160,7 +160,7 @@ func TestDisconnectDoesNotBlockReconnection(t *testing.T) {
 		t.Fatalf("переподключение отвергнуто: %v", err)
 	}
 	defer client2.Close()
-	go client2.Listen() //nolint:errcheck
+	go client2.Listen() //nolint:errcheck // фоновое чтение, обрывается закрытием соединения
 
 	waitFor(t, 2*time.Second, func() bool { return len(srv.ActiveDeviceIDs()) == 1 })
 }

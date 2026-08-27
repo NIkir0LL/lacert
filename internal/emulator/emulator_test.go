@@ -44,7 +44,7 @@ func startTestGateway(t *testing.T, adminToken string) (httpURL, tcpAddr string,
 	tcpSrv := tcpserver.New(gw, quietLogger())
 	var mu sync.Mutex
 	count := 0
-	tcpSrv.OnData = func(deviceID string, plaintext []byte) {
+	tcpSrv.OnData = func(_ string, _ []byte) {
 		mu.Lock()
 		count++
 		mu.Unlock()

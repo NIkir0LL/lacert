@@ -27,8 +27,8 @@ func TestForgedAckIsRejectedWithoutSessionKey(t *testing.T) {
 	}
 
 	// А настоящее устройство, знающее ключ, подтверждение отправит.
-	real := EncodeRotationAck(&crypto.RotationAck{Iteration: observedIteration}, sessionKey)
-	got, err := DecodeRotationAck(real, sessionKey)
+	realFrame := EncodeRotationAck(&crypto.RotationAck{Iteration: observedIteration}, sessionKey)
+	got, err := DecodeRotationAck(realFrame, sessionKey)
 	if err != nil {
 		t.Fatalf("настоящее подтверждение должно приниматься: %v", err)
 	}

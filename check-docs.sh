@@ -356,15 +356,22 @@ SKIP = ("./.git", "./vendor", "./firmware/build", "./bench/build",
         "./bench/sdkconfig")
 STRAY = (".log", ".bak", ".tmp", ".old", ".orig", ".swp", ".rej")
 
+# Сравнение по началу строки пропускало то, ради чего проверка и писалась:
+# исключение "./firmware/sdkconfig" (порождаемый menuconfig файл) закрывало
+# собой и sdkconfig.old — резервную копию, пролежавшую в репозитории с 1.1.0.
+# Теперь путь исключается только целиком или как каталог.
+def skipped(p):
+    return any(p == s or p.startswith(s + os.sep) for s in SKIP)
+
 empty, stray = [], []
 for root, dirs, files in os.walk("."):
-    if any(root.startswith(s) for s in SKIP):
+    if skipped(root):
         dirs[:] = []
         continue
-    dirs[:] = [d for d in dirs if not os.path.join(root, d).startswith(SKIP)]
+    dirs[:] = [d for d in dirs if not skipped(os.path.join(root, d))]
     for f in files:
         p = os.path.join(root, f)
-        if any(p.startswith(s) for s in SKIP): continue
+        if skipped(p): continue
         if os.path.getsize(p) == 0:
             empty.append(p)
         if f.endswith(STRAY) or f.endswith("~"):
@@ -378,7 +385,7 @@ for p in stray:
 # В корне проекта состав файлов известен наперёд. Всё прочее там — либо
 # случайно сохранённый вывод команды, либо забытый черновик. Именно так в
 # рабочее дерево однажды попал файл с выводом tree.
-ROOT_OK = (".md", ".sh", ".ps1", ".mod", ".sum", ".gitignore")
+ROOT_OK = (".md", ".sh", ".ps1", ".mod", ".sum", ".gitignore", ".yml")
 ROOT_NAMES = ("LICENSE", "go.mod", "go.sum", ".gitignore")
 unexpected = []
 for f in sorted(os.listdir(".")):

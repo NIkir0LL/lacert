@@ -403,11 +403,12 @@ func (s *Server) serveSession(conn net.Conn, entry *connEntry, deviceID string) 
 		_ = conn.SetReadDeadline(time.Now().Add(IdleTimeout))
 		msgType, payload, err := wire.ReadFrame(conn)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			switch {
+			case errors.Is(err, io.EOF):
 				s.Logger.Info("устройство закрыло соединение", "device_id", deviceID)
-			} else if errors.Is(err, net.ErrClosed) {
+			case errors.Is(err, net.ErrClosed):
 				s.Logger.Info("соединение закрыто сервером (переподключение/остановка)", "device_id", deviceID)
-			} else {
+			default:
 				s.Logger.Warn("ошибка чтения кадра (возможно, простой дольше IdleTimeout)", "device_id", deviceID, "err", err)
 			}
 			return

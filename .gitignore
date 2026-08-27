@@ -13,6 +13,7 @@
 # firmware (own code kept, third-party components fetched separately)
 firmware/build/
 firmware/sdkconfig
+firmware/sdkconfig.old
 firmware/components/ml_kem/
 firmware/components/blake3/
 

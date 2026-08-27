@@ -32,7 +32,7 @@ func TestBrokerPublishSubscribe(t *testing.T) {
 	defer client.Disconnect(250)
 
 	received := make(chan string, 1)
-	token := client.Subscribe("devices/esp32-001/telemetry", 0, func(c paho.Client, m paho.Message) {
+	token := client.Subscribe("devices/esp32-001/telemetry", 0, func(_ paho.Client, m paho.Message) {
 		received <- string(m.Payload())
 	})
 	if !token.WaitTimeout(2*time.Second) || token.Error() != nil {

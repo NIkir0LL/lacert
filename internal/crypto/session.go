@@ -144,9 +144,10 @@ func (s *Session) Stats() Stats {
 // и не даёт переиспользовать секрет в другом контексте.
 func DeriveK0(sharedSecret, transcript []byte) []byte {
 	h := blake3.New()
-	h.Write(sharedSecret)
-	h.Write(transcript)
-	h.Write([]byte(handshakeSeparator))
+	// Запись в хеш ошибку не возвращает, отбрасываем явно.
+	_, _ = h.Write(sharedSecret)
+	_, _ = h.Write(transcript)
+	_, _ = h.Write([]byte(handshakeSeparator))
 	return h.Sum(nil)
 }
 
