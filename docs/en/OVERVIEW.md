@@ -211,9 +211,9 @@ idf.py build
 idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
-The complete instructions, test-bench setup and a walkthrough of common problems
-are in [`FIRMWARE_BUILD.md`](FIRMWARE_BUILD.md). The internals of the firmware are covered in
-[`FIRMWARE.md`](FIRMWARE.md).
+The complete instructions, test-bench setup and a walkthrough of common
+problems are in [`FIRMWARE_BUILD.md`](FIRMWARE_BUILD.md). The internals of the
+firmware are covered in [`FIRMWARE.md`](FIRMWARE.md).
 
 ---
 

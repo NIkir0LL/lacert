@@ -45,7 +45,8 @@ cd firmware/linux-debug
 bash build_linux.sh
 ```
 
-(при нестандартном расположении библиотек: `BLAKE3_DIR=... PQCLEAN_DIR=... bash build_linux.sh`)
+(при нестандартном расположении библиотек команда принимает пути:
+`BLAKE3_DIR=... PQCLEAN_DIR=... bash build_linux.sh`)
 
 ## Запуск против шлюза
 

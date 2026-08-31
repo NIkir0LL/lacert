@@ -160,10 +160,11 @@ PSRAM on the S3-N8R2 or reduce the buffers.
 **ECDSA P-256** is used, following the analysis (SLH-DSA is impractical on the
 ESP32: signing takes hundreds of milliseconds and produces 7,856 bytes).
 
-Of the two boards used here, a hardware elliptic-curve accelerator is present **only on the ESP32-C6**, where
-signing takes 22.2 ms. The ESP32-S3 has no such block, so the same operation
-runs in software and takes 170.2 ms — a difference of 7.7×. This is worth
-keeping in mind when choosing a board if handshakes happen frequently.
+Of the two boards used here, a hardware elliptic-curve accelerator is present
+**only on the ESP32-C6**, where signing takes 22.2 ms. The ESP32-S3 has no such
+block, so the same operation runs in software and takes 170.2 ms — a difference
+of 7.7×. This is worth keeping in mind when choosing a board if handshakes
+happen frequently.
 
 The figures are quoted from [`MEASUREMENTS.md`](MEASUREMENTS.md), and the cause
 of the gap was verified by a separate experiment —
@@ -211,8 +212,13 @@ a release tag rather than an intermediate commit:
 cd ~/esp/esp-idf && git describe --tags      # should read e.g. v5.4.4
 ```
 
-If you see a tail like `v5.4.4-813-g...`, switch to the tag:
-`git checkout v5.4.4 && git submodule update --init --recursive && ./install.sh esp32s3,esp32c6`.
+If you see a tail like `v5.4.4-813-g...`, switch to the tag.
+
+```bash
+git checkout v5.4.4 && git submodule update --init --recursive
+./install.sh esp32s3,esp32c6
+```
+
 `ccache -C` and a single-threaded build (`idf.py -j1 build`) also help.
 
 **`undefined reference to mbedtls_chachapoly_*`.** ChaCha20-Poly1305 is not

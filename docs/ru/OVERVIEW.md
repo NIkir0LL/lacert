@@ -57,7 +57,8 @@ LACERT (Lightweight Autonomous Continuous Encryption with Refreshment Tokens) �
    подписывает `challenge || SHA-256(образ прошивки)` — так шлюз убеждается, что
    на устройстве работает та прошивка, что была зарегистрирована.
 
-Подробности каждого шага, форматы кадров и полей — в [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md).
+Подробности каждого шага, форматы кадров и полей — в
+[`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md).
 
 ---
 
@@ -206,7 +207,8 @@ idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
 Полная инструкция, настройка стенда и разбор частых проблем — в
-[`FIRMWARE_BUILD.md`](FIRMWARE_BUILD.md). Устройство прошивки изнутри — в [`FIRMWARE.md`](FIRMWARE.md).
+[`FIRMWARE_BUILD.md`](FIRMWARE_BUILD.md). Устройство прошивки изнутри — в
+[`FIRMWARE.md`](FIRMWARE.md).
 
 ---
 

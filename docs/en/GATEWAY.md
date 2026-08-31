@@ -77,9 +77,9 @@ log) are returned only with a valid token — an outsider has no business knowin
 how the gateway is configured.
 
 Note that in the current scheme the shared secret is encapsulated under the
-**device's** public key (see [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md), section 3.2), so the gateway's
-own public key takes no part in the handshake: the firmware retrieves it but
-never uses it.
+**device's** public key (see [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md), section
+3.2), so the gateway's own public key takes no part in the handshake: the
+firmware retrieves it but never uses it.
 
 ### Counters at `/api/v1/metrics`
 
@@ -262,8 +262,8 @@ of memory per device**.
 
 Cryptography is not the bottleneck: on the server a handshake takes a fraction
 of a millisecond and a rotation tens of microseconds. It is expensive only on
-the microcontroller itself — see [`FIRMWARE.md`](FIRMWARE.md). What limits the system is the
-database and the network, not computation.
+the microcontroller itself — see [`FIRMWARE.md`](FIRMWARE.md). What limits the
+system is the database and the network, not computation.
 
 Two problems were found and fixed as a result of these measurements:
 

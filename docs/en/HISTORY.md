@@ -8,8 +8,8 @@ the system built this way", whereas how it works today is described in
 [`OVERVIEW.md`](OVERVIEW.md), [`GATEWAY.md`](GATEWAY.md) and
 [`FIRMWARE.md`](FIRMWARE.md).
 
-Every item is completed and verified work rather than intent: the defects listed
-were reproduced by a test or a live run before being fixed.
+Every item is completed and verified work. The defects listed were reproduced
+by a test or a live run before being fixed.
 
 ---
 

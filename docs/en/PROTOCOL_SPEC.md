@@ -444,8 +444,9 @@ but for the ESP32 **ECDSA P-256 is strongly recommended**:
 All figures are quoted from [`MEASUREMENTS.md`](MEASUREMENTS.md), which also
 holds the methodology and the conditions for reproducing them.
 
-This is confirmed by measurements (see [`MEASUREMENTS.md`](MEASUREMENTS.md)). ML-KEM provides
-post-quantum strength at the key-exchange layer. The signature remains classical.
+This is confirmed by measurements (see [`MEASUREMENTS.md`](MEASUREMENTS.md)).
+ML-KEM provides post-quantum strength at the key-exchange layer. The signature
+remains classical.
 
 Worth keeping in mind: on the ESP32-S3 the signature turns out to be the most
 expensive operation in the protocol — more expensive than a post-quantum ML-KEM
@@ -471,14 +472,15 @@ of the SLH-DSA class — and correspondingly more capable hardware — is requir
 
 ### The alternative considered: Ed25519
 
-Ed25519 was evaluated during the work as a replacement for ECDSA. The scheme was
-not implemented from scratch — Go's standard library (`crypto/ed25519`) was used,
-so the correctness of the algorithm itself rests with its authors. What this
-project verified is the integration: signing and verification on a generated key
-pair, rejection of a tampered message, and completion of a full handshake
-(`TestEd25519RoundTrip` and `TestHandshakeEd25519` in `internal/crypto`).
-Measurements on the server platform showed a noticeable gain — signing 23 %
-faster and 99× less memory allocated (see [`MEASUREMENTS.md`](MEASUREMENTS.md), section 3.2).
+Ed25519 was evaluated during the work as a replacement for ECDSA. The scheme
+was not implemented from scratch — Go's standard library (`crypto/ed25519`) was
+used, so the correctness of the algorithm itself rests with its authors. What
+this project verified is the integration: signing and verification on a
+generated key pair, rejection of a tampered message, and completion of a full
+handshake (`TestEd25519RoundTrip` and `TestHandshakeEd25519` in
+`internal/crypto`). Measurements on the server platform showed a noticeable
+gain — signing 23 % faster and 99× less memory allocated (see
+[`MEASUREMENTS.md`](MEASUREMENTS.md), section 3.2).
 
 The replacement was nevertheless rejected:
 

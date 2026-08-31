@@ -146,7 +146,8 @@ otherwise the build picks up settings from the previous board.
 
 ## Note on `bench_host`
 
-Building the host benchmark ([`MEASUREMENTS.md`](MEASUREMENTS.md), section 6.2) needs the `-I.`
-flag, otherwise the build fails on a missing `esp_random.h`. The `linux-debug/`
-directory provides an `esp_random.h` stub (randomness from `getrandom(2)`,
-falling back to `/dev/urandom`) that reproduces the measurements on the host.
+Building the host benchmark ([`MEASUREMENTS.md`](MEASUREMENTS.md), section 6.2)
+needs the `-I.` flag, otherwise the build fails on a missing `esp_random.h`.
+The `linux-debug/` directory provides an `esp_random.h` stub (randomness from
+`getrandom(2)`, falling back to `/dev/urandom`) that reproduces the
+measurements on the host.

@@ -373,8 +373,8 @@ handshake:
 **Observation 6. The post-quantum key exchange is cheaper than the classical
 one.** ML-KEM accounts for 13 % of the handshake, whereas ECDHE in DTLS costs
 roughly 2,700 µs — which follows from the difference between DTLS-PSK and
-DTLS-ECDHE-PSK. Replacing ECDHE with ML-KEM-1024 therefore not only provides
-post-quantum strength but also saves time.
+DTLS-ECDHE-PSK. Replacing ECDHE with ML-KEM-1024 therefore provides
+post-quantum strength and saves time as well.
 
 The difference in total cost is explained by DTLS-ECDHE-ECDSA performing both an
 ephemeral elliptic-curve exchange and two signatures with certificate parsing,
@@ -665,10 +665,10 @@ The verdict is that ML-DSA is usable. Signing takes between 72 and 123
 milliseconds, comparable to ECDSA without hardware assistance (158 ms) and
 acceptable for a device reporting every few seconds.
 
-SLH-DSA is not merely slow by comparison but unusable: **one signature takes 101
-seconds** on the ESP32-C6 and 114 seconds on the ESP32-S3. Key generation takes
-thirteen and fifteen seconds respectively. A device signing a single message
-would spend nearly two minutes computing.
+SLH-DSA is unusable here. **One signature takes 101 seconds** on the ESP32-C6
+and 114 seconds on the ESP32-S3. Key generation takes thirteen and fifteen
+seconds respectively. A device signing a single message would spend nearly two
+minutes computing.
 
 How far that is from everything else:
 

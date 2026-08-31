@@ -148,9 +148,9 @@ live-прогоном: ротация проходит с ACK, номер ите
 Тот же недосмотр был в обработке ротации (`handle_rotation_v2`) — там без
 записи, но с тем же чтением за границей.
 
-Существенно, что устройство не аутентифицирует шлюз (см. [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md),
-раздел 3): отправить такой кадр может любой, кто дотянулся до сети, а не только
-настоящий шлюз.
+Существенно, что устройство не аутентифицирует шлюз (см.
+[`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md), раздел 3): отправить такой кадр может
+любой, кто дотянулся до сети, а не только настоящий шлюз.
 
 **Исправление.** В обоих местах добавлена проверка
 `kem_ct_len != LACERT_KEM_CIPHERTEXT_SIZE` → `LACERT_ERR_DECODE`. Подтверждено
@@ -313,7 +313,8 @@ UTC+3), выборка телеметрии по периоду возвраща
 replays_blocked=3, rotations_succeeded=1, rotations_failed=2,
 firmware_checks_passed=2, firmware_checks_failed=1, firmware_checks_rejected=1,
 devices_revoked=1. Все ассерты сходятся: механизмы работают корректно и не
-мешают друг другу. Запуск: go test -run TestStressAllDefenseMechanisms -v ./internal/gateway/
+мешают друг другу. Запуск: go test -run TestStressAllDefenseMechanisms -v
+./internal/gateway/
 
 ---
 
@@ -358,7 +359,7 @@ devices_revoked=1. Все ассерты сходятся: механизмы р
   LACERT_FIRMWARE_VALIDITY (15s), LACERT_FIRMWARE_CHALLENGE_TIMEOUT (25s),
   LACERT_PENDING_HANDSHAKE_TIMEOUT (20s), LACERT_NONCE_TTL (5m).
 
-Проверено: шлюз логирует каждое применённое переопределение при старте.
+Шлюз логирует каждое применённое переопределение при старте, это проверено.
 
 ---
 

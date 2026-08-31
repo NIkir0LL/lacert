@@ -270,7 +270,8 @@ Operations that do not go through the accelerator and therefore must not change:
 
 The SLH-DSA signature matching to hundredths of a millisecond over a hundred
 seconds is the strictest check available: it rules out even accidental
-agreement. agreement to hundredths of a percent confirms that exactly one parameter changed
+agreement. Agreement to hundredths of a percent confirms that exactly one
+parameter changed
 between builds, and that the difference seen in curve operations is down to it.
 
 ### Between the boards
@@ -335,7 +336,7 @@ operation by 16.8x, which leaves no doubt about the cause.
 The error was in how the figure was obtained. The earlier value was inferred
 indirectly, from a DTLS-ECDHE-PSK handshake time, on the assumption that the
 symmetric part was small beside it. The assumption did not hold: something else
-dominated that handshake, and the difference in key agreement simply vanished
+dominated that handshake, and the difference in key agreement vanished
 inside it.
 
 This is precisely the case flagged in the write-up as indirect and the weakest

@@ -149,9 +149,9 @@ single Msg2 produced two defects at once:
 The same oversight was present in rotation handling (`handle_rotation_v2`) —
 without the write there, but with the same out-of-bounds read.
 
-Notably, the device does not authenticate the gateway (see [`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md),
-section 3), so such a frame can be sent by anyone who can reach the network, not
-only by the genuine gateway.
+Notably, the device does not authenticate the gateway (see
+[`PROTOCOL_SPEC.md`](PROTOCOL_SPEC.md), section 3), so such a frame can be sent
+by anyone who can reach the network, not only by the genuine gateway.
 
 **Fix.** Both places now check `kem_ct_len != LACERT_KEM_CIPHERTEXT_SIZE` and
 return `LACERT_ERR_DECODE`. Confirmed under AddressSanitizer: before the fix,
@@ -263,7 +263,7 @@ restored after the DOM is redrawn (on the next frame). Verified in a browser:
 after scrolling down and two auto-refreshes the position is preserved with no
 shift.
 
-### 2. The time filter (30 min / 1 h / …) did not apply on a server with a non-UTC timezone
+### 2. Time filter (30 min / 1 h / …) ignored on a non-UTC server timezone
 **Problem (the main one).** On a server in a timezone other than UTC (for
 example UTC+3), querying telemetry by period returned almost nothing: telemetry
 was stored in the server's local time while the range boundaries arrived from
@@ -363,14 +363,15 @@ production system with ESP32 devices, all of the system's timing parameters can
 now be overridden through the gateway's environment variables, without changing
 code. If a variable is not set, the production default applies.
 
-Configurable parameters (the full table and recommendations are in [`TUNING.md`](TUNING.md)):
-  `LACERT_ROTATION_INTERVAL` (300 s), `LACERT_ROTATION_PACKET_LIMIT` (300),
-  `LACERT_ROTATION_ACK_TIMEOUT` (5 s), `LACERT_ROTATION_CHECK_PERIOD` (5 s),
-  `LACERT_MAX_ROTATION_FAILURES` (3), `LACERT_FIRMWARE_INTERVAL` (1 h),
-  `LACERT_FIRMWARE_VALIDITY` (15 s), `LACERT_FIRMWARE_CHALLENGE_TIMEOUT` (25 s),
-  `LACERT_PENDING_HANDSHAKE_TIMEOUT` (20 s), `LACERT_NONCE_TTL` (5 m).
+Configurable parameters (the full table and recommendations are in
+[`TUNING.md`](TUNING.md)): `LACERT_ROTATION_INTERVAL` (300 s),
+`LACERT_ROTATION_PACKET_LIMIT` (300), `LACERT_ROTATION_ACK_TIMEOUT` (5 s),
+`LACERT_ROTATION_CHECK_PERIOD` (5 s), `LACERT_MAX_ROTATION_FAILURES` (3),
+`LACERT_FIRMWARE_INTERVAL` (1 h), `LACERT_FIRMWARE_VALIDITY` (15 s),
+`LACERT_FIRMWARE_CHALLENGE_TIMEOUT` (25 s), `LACERT_PENDING_HANDSHAKE_TIMEOUT`
+(20 s), `LACERT_NONCE_TTL` (5 m).
 
-Verified: the gateway logs every applied override at startup.
+The gateway logs every applied override at startup, which has been verified.
 
 ---
 

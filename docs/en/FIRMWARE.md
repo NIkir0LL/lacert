@@ -2,10 +2,11 @@
 
 # ESP32 firmware — how it works inside
 
-The LACERT protocol client written in C for ESP-IDF. A single project builds for
-three boards: XIAO ESP32-C6 (RISC-V), XIAO ESP32-S3 and ESP32-S3-DevKitC-1
-(Xtensa). Step-by-step building and flashing is covered in [`FIRMWARE_BUILD.md`](FIRMWARE_BUILD.md)
-this document describes how the code is organised.
+The LACERT protocol client written in C for ESP-IDF. A single project builds
+for three boards: XIAO ESP32-C6 (RISC-V), XIAO ESP32-S3 and ESP32-S3-DevKitC-1
+(Xtensa). Step-by-step building and flashing is covered in
+[`FIRMWARE_BUILD.md`](FIRMWARE_BUILD.md) this document describes how the code
+is organised.
 
 ## Files
 
@@ -144,9 +145,9 @@ At the top of `main.c`:
 
 The crypto module is compiled on the host against the real mbedTLS 3.6 headers —
 the same version ESP-IDF ships — and exercised against a live Go gateway.
-Verified: BLAKE3 matches the reference, ML-KEM decapsulation matches the
-gateway's implementation (circl), ECDSA produces valid DER, and the full
-protocol (handshake, rotation, firmware check) completes. On real hardware all
+The checks cover BLAKE3 against the reference, ML-KEM decapsulation against the
+gateway's implementation (circl), ECDSA producing valid DER, and a full protocol
+run (handshake, rotation, firmware check). On real hardware all
 three boards (C6, XIAO S3, DevKitC-1) run the whole protocol.
 
 ## Behavior when the gateway is unavailable
@@ -289,9 +290,9 @@ lies not in core performance but in the **hardware elliptic-curve accelerator**,
 which the C6 has and the S3 does not. For cryptography on a microcontroller, a
 dedicated accelerator matters more than clock speed.
 
-This is not an inference but a measured fact: a C6 build with the accelerator
-disabled signs in 158.05 ms instead of 21.90, that is 7.2 times slower. The
-experiment is described in [`ECC_ACCELERATOR.md`](ECC_ACCELERATOR.md).
+This is measured, not inferred. A C6 build with the accelerator disabled signs
+in 158.05 ms instead of 21.90, that is 7.2 times slower. The experiment is
+described in [`ECC_ACCELERATOR.md`](ECC_ACCELERATOR.md).
 
 **Second conclusion.** ML-KEM barely depends on the platform: these chips have
 no accelerators for lattice cryptography, so everything runs in software. Put
