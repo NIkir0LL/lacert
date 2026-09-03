@@ -250,18 +250,20 @@ All of the above at once, together with the benchmarks and repository checks:
 bash check-all.sh     # or check-all.ps1 on Windows
 ```
 
-Separately, a consistency check between the documentation and the code. It
-answers one question: has what the documents say drifted from what the program
-does — environment variables, frame codes across three sources at once, limits,
-reference measurements, numeric parity between the two locales, and references
-to file paths.
+Separately, a consistency check between the documentation and the code, plus
+repository hygiene. It answers one question: has what the documents say drifted
+from what the program does — environment variables, frame codes across three
+sources at once, limits, reference measurements, numeric parity between the two
+locales, references to file paths, links between documents, stray files, and
+academic mentions or secrets in the code.
 
 ```bash
 bash check-docs.sh
 ```
 
-It returns a non-zero code on a discrepancy, so it suits automated checks as
-well. It runs as one section of `check-all.sh`.
+It returns a non-zero code on a discrepancy. It runs as one section of
+`check-all.sh` and as a CI step, where together with the demo it repeats the
+whole local pipeline except the benchmarks.
 
 An end-to-end stress test of five defense mechanisms (forged signature, replay,
 stale challenge, wrong key, corrupted frame) lives in

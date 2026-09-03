@@ -33,7 +33,21 @@ if ($LASTEXITCODE -eq 0) { Ok "go vet ./... — замечаний нет" }
 else { Bad "go vet нашёл проблемы:"; $out | Select-Object -First 10 | ForEach-Object { Inf $_ }; $failed = 1 }
 
 # ─────────────────────────────────────────────────────────────
-Say "4. Тесты"
+Say "4. Линтер"
+# Линтер не входит в Go и ставится отдельно, поэтому его отсутствие — не
+# провал проверки, а предупреждение: без него остальные проверки должны
+# отработать.
+if (Get-Command golangci-lint -ErrorAction SilentlyContinue) {
+  $out = golangci-lint run --timeout 5m ./... 2>&1
+  if ($LASTEXITCODE -eq 0) { Ok "golangci-lint — замечаний нет" }
+  else { Bad "golangci-lint нашёл замечания:"; $out | Select-Object -First 15 | ForEach-Object { Inf $_ }; $failed = 1 }
+} else {
+  Warn "golangci-lint не установлен, проверка пропущена"
+  Inf "установка: https://golangci-lint.run"
+}
+
+# ─────────────────────────────────────────────────────────────
+Say "5. Тесты"
 $out = go test ./... -count=1 2>&1
 $passed = ($out | Select-String -Pattern '^ok' ).Count
 $fail   = ($out | Select-String -Pattern '^FAIL').Count
@@ -59,7 +73,7 @@ if (-not $env:LACERT_TEST_PG_DSN) {
 }
 
 # ─────────────────────────────────────────────────────────────
-Say "5. Детектор гонок данных"
+Say "6. Детектор гонок данных"
 Inf "(требует gcc; если его нет — секция пропустится)"
 $out = go test -race ./internal/... -count=1 2>&1
 if ($LASTEXITCODE -eq 0) { Ok "go test -race — гонок не обнаружено" }
@@ -72,56 +86,31 @@ elseif ($out -match 'DATA RACE') {
 else { Bad "тесты с -race не прошли"; $out | Select-String '^FAIL' | Select-Object -First 5 | ForEach-Object { Inf $_ } }
 
 # ─────────────────────────────────────────────────────────────
-Say "6. Покрытие тестами"
+Say "7. Покрытие тестами"
 go test ./internal/... -cover -count=1 2>&1 |
   Select-String -Pattern 'coverage:' | ForEach-Object { Inf $_ }
 
 # ─────────────────────────────────────────────────────────────
-Say "7. Бенчмарки подписи (главные цифры)"
+Say "8. Бенчмарки подписи (главные цифры)"
 go test ./internal/crypto/ -bench 'BenchmarkSign|BenchmarkVerify|BenchmarkGenerateIdentity' `
   -benchtime=10x -benchmem -run '^$' -count=1 2>&1 |
   Select-String -Pattern '^Benchmark' | ForEach-Object { Inf $_ }
 
 # ─────────────────────────────────────────────────────────────
-Say "8. Бенчмарки ML-KEM, шифрования и ротации"
+Say "9. Бенчмарки ML-KEM, шифрования и ротации"
 go test ./internal/crypto/ -bench 'GenerateKEMKeyPair|Encapsulate|Decapsulate|EncryptPacket|RotationStep' `
   -benchtime=50x -run '^$' -count=1 2>&1 |
   Select-String -Pattern '^Benchmark' | ForEach-Object { Inf $_ }
 
 # ─────────────────────────────────────────────────────────────
-Say "9. Бенчмарки полного рукопожатия"
+Say "10. Бенчмарки полного рукопожатия"
 Inf "(весь протокол целиком: ECDSA против SLH-DSA)"
 go test ./internal/crypto/ -bench 'FullHandshake' `
   -benchtime=5x -run '^$' -count=1 2>&1 |
   Select-String -Pattern '^Benchmark' | ForEach-Object { Inf $_ }
 
 # ─────────────────────────────────────────────────────────────
-Say "10. Документация"
-$ru = @(Get-ChildItem -Path "docs\ru\*.md" -ErrorAction SilentlyContinue).Count
-$en = @(Get-ChildItem -Path "docs\en\*.md" -ErrorAction SilentlyContinue).Count
-if ($ru -eq $en -and $ru -gt 0) { Ok "docs/ru и docs/en синхронны ($ru файлов)" }
-else { Bad "рассинхрон: ru=$ru en=$en"; $failed = 1 }
-
-# битые ссылки внутри документации
-$broken = 0; $total = 0
-foreach ($lang in @("ru","en")) {
-  $dir = "docs\$lang"
-  if (-not (Test-Path $dir)) { continue }
-  foreach ($f in Get-ChildItem "$dir\*.md") {
-    $text = Get-Content $f.FullName -Raw
-    foreach ($m in [regex]::Matches($text, '\]\(([^)#]+\.md)')) {
-      $link = $m.Groups[1].Value
-      if ($link -like "http*") { continue }
-      $total++
-      $target = Join-Path $dir $link
-      if (-not (Test-Path $target)) { Bad "битая ссылка: $lang/$($f.Name) -> $link"; $broken++ }
-    }
-  }
-}
-if ($broken -eq 0) { Ok "ссылок проверено $total, битых 0" } else { $failed = 1 }
-
-# ─────────────────────────────────────────────────────────────
-Say "11. Сверка документации с кодом"
+Say "11. Сверка документации с кодом и гигиена дерева"
 # Само средство написано на bash и python3 — на Windows оно запускается, если
 # установлены оба. Отсутствие bash не считается ошибкой прогона: остальные
 # проверки от него не зависят, а сверка выполнится на другой машине или в
@@ -144,12 +133,6 @@ if (Test-Path "check-docs.sh") {
 } else {
   Warn "check-docs.sh не найден, сверка пропущена"
 }
-
-# ─────────────────────────────────────────────────────────────
-Say "12. Гигиена репозитория"
-$acad = Select-String -Path "*.md","docs\ru\*.md","docs\en\*.md","internal\**\*.go" `
-        -Pattern 'диплом|магистр|отчёт по практике' -ErrorAction SilentlyContinue
-if (-not $acad) { Ok "учебных упоминаний нет" } else { Bad "учебных упоминаний: $($acad.Count)" }
 
 # ─────────────────────────────────────────────────────────────
 Say "ИТОГ"

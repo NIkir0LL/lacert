@@ -120,34 +120,7 @@ go test ./internal/crypto/ -bench 'FullHandshake' \
   | grep -E '^Benchmark' | sed 's/-[0-9]*\s\+/  /' | sed 's/^/    /' 
 
 # ─────────────────────────────────────────────────────────────
-say "11. Документация"
-ru=$(ls docs/ru/*.md 2>/dev/null | wc -l)
-en=$(ls docs/en/*.md 2>/dev/null | wc -l)
-[ "$ru" = "$en" ] && [ "$ru" -gt 0 ] \
-  && ok "docs/ru и docs/en синхронны ($ru файлов)" \
-  || { bad "рассинхрон: ru=$ru en=$en"; FAILED=1; }
-
-# битые ссылки
-python3 - <<'PY' 2>/dev/null || echo "    (python3 не найден — проверка ссылок пропущена)"
-import os,re
-bad=tot=0
-for lang in ('ru','en'):
-    d=os.path.join('docs',lang)
-    if not os.path.isdir(d): continue
-    for fn in sorted(os.listdir(d)):
-        if not fn.endswith('.md'): continue
-        s=open(os.path.join(d,fn),encoding='utf-8').read()
-        for m in re.finditer(r'\]\(([^)#]+\.md)[^)]*\)', s):
-            link=m.group(1); tot+=1
-            if link.startswith('http'): continue
-            if not os.path.exists(os.path.normpath(os.path.join(d,link))):
-                print(f"    \033[1;31m✗\033[0m битая ссылка: {lang}/{fn} → {link}"); bad+=1
-print(f"  \033[1;32m✓\033[0m ссылок проверено {tot}, битых {bad}" if bad==0
-      else f"  \033[1;31m✗\033[0m битых ссылок: {bad}")
-PY
-
-# ─────────────────────────────────────────────────────────────
-say "12. Сверка документации с кодом"
+say "11. Сверка документации с кодом и гигиена дерева"
 if [ -f check-docs.sh ]; then
   if bash check-docs.sh >/tmp/lacert-check-docs.log 2>&1; then
     ok "документация сходится с кодом"
@@ -160,16 +133,6 @@ if [ -f check-docs.sh ]; then
 else
   warn "check-docs.sh не найден, сверка пропущена"
 fi
-
-# ─────────────────────────────────────────────────────────────
-say "13. Гигиена репозитория"
-n=$(grep -rniE 'диплом|магистр|отчёт по практике' --include='*.md' --include='*.go' --include='*.c' . 2>/dev/null \
-    | grep -v vendor | grep -v 'firmware/components' | wc -l)
-[ "$n" = "0" ] && ok "учебных упоминаний нет" || { bad "учебных упоминаний: $n"; }
-
-n=$(grep -rniE '(token|password|secret)[[:space:]]*[:=][[:space:]]*"[A-Za-z0-9+/]{16,}' \
-    --include='*.go' . 2>/dev/null | grep -v vendor | grep -v _test | wc -l)
-[ "$n" = "0" ] && ok "жёстко заданных секретов не найдено" || bad "возможные секреты: $n"
 
 # ─────────────────────────────────────────────────────────────
 say "ИТОГ"

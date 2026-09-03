@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# check-docs.sh — сверка документации с кодом.
+# check-docs.sh — сверка документации с кодом и гигиена дерева.
 #
 # Отвечает на один вопрос: не разошлось ли написанное в документах с тем, что
 # на самом деле делает программа. Проверки подобраны по ошибкам, которые уже
@@ -400,6 +400,54 @@ if not empty and not stray and not unexpected:
     print("  \033[1;32m\u2713\033[0m пустых и посторонних файлов нет")
 sys.exit(1 if (empty or stray or unexpected) else 0)
 PYEOF
+
+# ─────────────────────────────────────────────────────────────
+say "8. Ссылки между документами"
+# Перенесено из check-all.sh, чтобы проверка была одна и та же локально и в
+# CI. Две локали должны содержать одинаковый набор документов, а ссылки вида
+# [текст](ФАЙЛ.md) — вести на существующие файлы.
+python3 - <<'PYEOF' || FAILED=1
+import os, re, sys
+ru = sorted(f for f in os.listdir("docs/ru") if f.endswith(".md"))
+en = sorted(f for f in os.listdir("docs/en") if f.endswith(".md"))
+bad = 0
+if ru != en:
+    print("  \033[1;31m\u2717\033[0m состав локалей расходится: только ru %s, только en %s"
+          % (sorted(set(ru) - set(en)), sorted(set(en) - set(ru))))
+    bad += 1
+else:
+    print("  \033[1;32m\u2713\033[0m docs/ru и docs/en синхронны (%d файлов)" % len(ru))
+tot = broken = 0
+for lang in ("ru", "en"):
+    d = os.path.join("docs", lang)
+    for fn in sorted(os.listdir(d)):
+        if not fn.endswith(".md"):
+            continue
+        text = open(os.path.join(d, fn), encoding="utf-8").read()
+        for m in re.finditer(r"\]\(([^)#]+\.md)[^)]*\)", text):
+            link = m.group(1)
+            if link.startswith("http"):
+                continue
+            tot += 1
+            if not os.path.exists(os.path.normpath(os.path.join(d, link))):
+                print("  \033[1;31m\u2717\033[0m битая ссылка: %s/%s \u2192 %s" % (lang, fn, link))
+                broken += 1
+if broken == 0:
+    print("  \033[1;32m\u2713\033[0m ссылок проверено %d, битых нет" % tot)
+sys.exit(1 if (bad or broken) else 0)
+PYEOF
+
+# ─────────────────────────────────────────────────────────────
+say "9. Гигиена репозитория"
+# Тоже из check-all.sh. Учебные упоминания в публикуемых текстах и жёстко
+# заданные секреты в коде не должны попадать в выпуск.
+n=$(grep -rniE 'диплом|магистр|отчёт по практике' --include='*.md' --include='*.go' --include='*.c' . 2>/dev/null \
+    | grep -v vendor | grep -v 'firmware/components' | wc -l)
+if [ "$n" = "0" ]; then ok "учебных упоминаний нет"; else bad "учебных упоминаний: $n"; FAILED=1; fi
+
+n=$(grep -rniE '(token|password|secret)[[:space:]]*[:=][[:space:]]*"[A-Za-z0-9+/]{16,}' \
+    --include='*.go' . 2>/dev/null | grep -v vendor | grep -v _test | wc -l)
+if [ "$n" = "0" ]; then ok "жёстко заданных секретов не найдено"; else bad "возможные секреты: $n"; FAILED=1; fi
 
 printf '\n\033[1;36m━━━ ИТОГ ━━━\033[0m\n'
 if [ "$FAILED" = "0" ]; then
