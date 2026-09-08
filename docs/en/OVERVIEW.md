@@ -231,7 +231,7 @@ without a board. See [`LINUX_DEBUG.md`](LINUX_DEBUG.md).
 ```bash
 go build ./...        # build everything
 go vet ./...          # static analysis
-go test ./...         # unit tests (14 packages)
+go test ./...         # unit tests (15 packages)
 go test -race ./...   # race detector
 golangci-lint run     # linter set, configured in .golangci.yml
 ```

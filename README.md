@@ -1,5 +1,7 @@
 # LACERT
 
+[![Проверки](https://github.com/NIkir0LL/lacert/actions/workflows/ci.yml/badge.svg)](https://github.com/NIkir0LL/lacert/actions/workflows/ci.yml)
+
 [English](#english) · [Русский](#русский)
 
 **LACERT** — a fully local, cloud-free system for connecting IoT devices to

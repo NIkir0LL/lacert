@@ -226,7 +226,7 @@ idf.py -p /dev/ttyUSB0 flash monitor
 ```bash
 go build ./...        # сборка всего
 go vet ./...          # статический анализ
-go test ./...         # модульные тесты (14 пакетов)
+go test ./...         # модульные тесты (15 пакетов)
 go test -race ./...   # проверка гонок
 golangci-lint run     # набор линтеров, настройка в .golangci.yml
 ```

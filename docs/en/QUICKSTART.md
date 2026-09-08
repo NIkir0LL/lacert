@@ -36,7 +36,7 @@ go test -race ./...                 # with the data-race detector (slower)
 go test ./... -cover                # with coverage
 ```
 
-Expected result: all 14 packages report `ok`. There should be no `FAIL`.
+Expected result: all 15 packages report `ok`. There should be no `FAIL`.
 
 ## 3. Run the gateway with emulated devices (no ESP32 hardware)
 
