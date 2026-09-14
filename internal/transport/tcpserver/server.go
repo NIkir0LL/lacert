@@ -135,6 +135,15 @@ type Server struct {
 	serveStarted bool
 	serveExited  chan struct{}
 
+	// accepted — все живые соединения, включая те, что ещё не дошли до
+	// рукопожатия и потому отсутствуют в conns. Shutdown закрывает их тоже:
+	// иначе сырое соединение без Msg1 держит обработчик в чтении до срока
+	// IdleTimeout, то есть до пятнадцати минут, и остановка ждёт его. Флаг
+	// closing запирает окно между Accept и учётом: соединение, принятое уже
+	// после начала остановки, закрывается сразу, не порождая обработчика.
+	accepted map[net.Conn]struct{}
+	closing  bool
+
 	// OnData вызывается каждый раз, когда шлюз успешно расшифровал пакет
 	// данных от устройства — сюда подключается передача в корпоративную
 	// систему (REST/MQTT, см. internal/api и internal/mqttbridge).
@@ -151,6 +160,7 @@ func New(gw *gateway.Gateway, logger *slog.Logger) *Server {
 		Logger:      logger,
 		conns:       make(map[string]*connEntry),
 		serveExited: make(chan struct{}),
+		accepted:    make(map[net.Conn]struct{}),
 	}
 }
 
@@ -197,9 +207,15 @@ func (s *Server) Serve(ln net.Listener) error {
 		// Потолок проверяем до запуска горутины: отказ должен быть дешёвым,
 		// иначе защита сама становится нагрузкой.
 		s.mu.Lock()
+		if s.closing {
+			s.mu.Unlock()
+			_ = conn.Close()
+			continue
+		}
 		over := s.active >= limit
 		if !over {
 			s.active++
+			s.accepted[conn] = struct{}{}
 		}
 		s.mu.Unlock()
 		if over {
@@ -219,6 +235,7 @@ func (s *Server) Serve(ln net.Listener) error {
 			defer func() {
 				s.mu.Lock()
 				s.active--
+				delete(s.accepted, conn)
 				s.mu.Unlock()
 			}()
 			s.handleConn(conn)
@@ -243,11 +260,15 @@ func (s *Server) ActiveConnections() int {
 // при получении сигнала остановки.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
+	s.closing = true
 	if s.ln != nil {
 		_ = s.ln.Close()
 	}
-	for _, e := range s.conns {
-		_ = e.conn.Close()
+	// Закрываем все принятые соединения, а не только зарегистрированные:
+	// соединение без рукопожатия в conns не попадает, а ждать его срока
+	// чтения остановке нельзя.
+	for c := range s.accepted {
+		_ = c.Close()
 	}
 	started := s.serveStarted
 	s.mu.Unlock()

@@ -6,6 +6,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	"lacert/internal/gateway"
 )
 
 // Shutdown обязан возвращаться только после выхода горутины Serve — иначе её
@@ -85,3 +87,91 @@ func TestShutdownBeforeServeDoesNotHang(t *testing.T) {
 type discard struct{}
 
 func (discard) Write(p []byte) (int, error) { return len(p), nil }
+
+// Соединение, которое подключилось, но не прислало Msg1, в conns не попадает.
+// Прежде Shutdown его не закрывал, и обработчик сидел в чтении до срока
+// IdleTimeout — пятнадцать минут, — а остановка ждала его. Теперь остановка
+// закрывает все принятые соединения и завершается сразу, а сырое соединение
+// получает конец потока.
+func TestShutdownClosesConnectionsWithoutHandshake(t *testing.T) {
+	gw, err := gateway.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := New(gw, slog.New(slog.NewTextHandler(discard{}, nil)))
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() { _ = srv.Serve(ln) }()
+
+	raw, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	// Дожидаемся, чтобы сервер принял соединение и запустил обработчик.
+	deadline := time.Now().Add(2 * time.Second)
+	for srv.ActiveConnections() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if srv.ActiveConnections() != 1 {
+		t.Fatalf("сервер не принял сырое соединение: активных %d", srv.ActiveConnections())
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	start := time.Now()
+	if err := srv.Shutdown(ctx); err != nil {
+		t.Fatalf("Shutdown не уложился: %v (прошло %v)", err, time.Since(start))
+	}
+	if took := time.Since(start); took > time.Second {
+		t.Fatalf("Shutdown занял %v — ждал соединение без рукопожатия", took)
+	}
+
+	_ = raw.SetReadDeadline(time.Now().Add(time.Second))
+	if _, err := raw.Read(make([]byte, 1)); err == nil {
+		t.Fatal("сырое соединение не закрыто сервером")
+	}
+}
+
+// Соединение, принятое уже после начала остановки, должно закрываться сразу,
+// не порождая обработчика. Воспроизводится через очередь listener: клиент
+// подключается, пока цикл приёма ещё не дошёл до Accept.
+func TestConnectionAcceptedDuringShutdownIsClosed(t *testing.T) {
+	gw, err := gateway.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := New(gw, slog.New(slog.NewTextHandler(discard{}, nil)))
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Соединение попадает в очередь ядра до старта Serve — оно будет принято
+	// первым же Accept, когда Serve запустится.
+	raw, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+
+	// Начинаем остановку до Serve: флаг closing уже стоит, listener закрыт.
+	// Serve после этого либо не примет ничего (listener закрыт), либо примет
+	// из очереди и обязан закрыть сразу. В обоих случаях активных быть не должно.
+	srv.mu.Lock()
+	srv.closing = true
+	srv.mu.Unlock()
+	done := make(chan error, 1)
+	go func() { done <- srv.Serve(ln) }()
+	time.Sleep(50 * time.Millisecond)
+	if n := srv.ActiveConnections(); n != 0 {
+		t.Fatalf("после начала остановки принято %d соединений, ожидалось 0", n)
+	}
+	_ = ln.Close()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Serve не завершился после закрытия listener")
+	}
+}

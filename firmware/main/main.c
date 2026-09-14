@@ -44,10 +44,10 @@ static const char *TAG = "lacert";
 // ---------------------------------------------------------------------------
 #define LACERT_WIFI_SSID      "Samsung"
 #define LACERT_WIFI_PASS      "1234567890"
-#define LACERT_GW_HOST        "10.15.107.104"   // IP шлюза в локальной сети
+#define LACERT_GW_HOST        "10.198.73.104"   // IP шлюза в локальной сети
 #define LACERT_GW_HTTP_PORT   8080
 #define LACERT_GW_TCP_PORT    7700
-#define LACERT_DEVICE_ID      "devkit-esp32-s3"
+#define LACERT_DEVICE_ID      "esp32-c6"
 #define LACERT_ADMIN_TOKEN    "6081c41ad5516ffece7ba37e43ed420c7c5d177db8b9a932734c86c4dc937a8e"               // токен шлюза, если включён
 
 #define TELEMETRY_PERIOD_MS   2000
@@ -98,7 +98,7 @@ static int64_t s_fw_sign_us;     // подпись ответа на прове�
 // Разница принципиальная: адресный RGB управляется импульсным протоколом
 // (через RMT), обычным gpio_set_level его не зажечь.
 // ---------------------------------------------------------------------------
-#define LACERT_LED_MODE          2     // <-- 1 для XIAO, 2 для DevKitC-1 с RGB
+#define LACERT_LED_MODE          1     // <-- 1 для XIAO, 2 для DevKitC-1 с RGB
 
 // --- Режим 1: простой светодиод ---
 // На XIAO светодиод ИНВЕРСНЫЙ: горит при НИЗКОМ уровне (частая ловушка).

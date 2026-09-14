@@ -126,10 +126,11 @@ machine in the clear.
 the gateway write session keys to its log. That exists for examining handshakes
 on the bench and must stay off everywhere except the lab.
 
-**The device registry does not handle key replacement.** Device keys live in NVS
-and stand in for efuse: if that memory is erased, the device generates fresh keys
-while the registry still holds the old record, and the handshake fails. There is
-no supported way to re-register a device yet.
+**Replacing device keys takes an operator action.** Device keys live in NVS and
+stand in for efuse: if that memory is erased, the device generates fresh keys
+while the registry still holds the old record, and the handshake fails. The
+registry does not notice this on its own — the device has to be re-registered
+through the REST API or the dashboard, replacing the keys of the existing record.
 
 These limits are neither hidden nor glossed over: they mark the area in which the
 results hold, and they set the direction for further work.

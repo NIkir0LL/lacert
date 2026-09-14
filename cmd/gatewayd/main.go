@@ -14,6 +14,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -251,6 +252,23 @@ func main() {
 		}
 	}
 
+	// Порты занимаем до запуска чего бы то ни было. Прежде слушатели
+	// открывались внутри горутин, и занятый порт давал лишь строку в журнале:
+	// процесс жил дальше, эмуляторы регистрировались на чужом шлюзе по тому же
+	// адресу, а служба считалась запущенной. Теперь занятый порт — отказ на
+	// старте с ненулевым кодом, и systemd увидит его как провал запуска.
+	tcpLn, err := net.Listen("tcp", tcpAddr)
+	if err != nil {
+		logger.Error("не удалось занять TCP-порт для устройств", "addr", tcpAddr, "err", err)
+		os.Exit(1)
+	}
+	httpLn, err := net.Listen("tcp", httpAddr)
+	if err != nil {
+		logger.Error("не удалось занять порт REST API", "addr", httpAddr, "err", err)
+		_ = tcpLn.Close()
+		os.Exit(1)
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -263,13 +281,13 @@ func main() {
 	}
 	go func() {
 		logger.Info("REST API запущен", "addr", httpAddr)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(httpLn); err != nil && err != http.ErrServerClosed {
 			logger.Error("REST API остановлен с ошибкой", "err", err)
 		}
 	}()
 	go sched.Run(ctx)
 	go func() {
-		if err := tcpSrv.ListenAndServe(tcpAddr); err != nil {
+		if err := tcpSrv.Serve(tcpLn); err != nil {
 			logger.Error("TCP-сервер шлюза остановлен с ошибкой", "err", err)
 		}
 	}()

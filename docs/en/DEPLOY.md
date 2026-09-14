@@ -244,7 +244,9 @@ journalctl -u lacert-gatewayd -n 50 --no-pager
 ```
 The most common causes: a port is already taken (`lsof -i :8080` /
 `lsof -i :7700` / `lsof -i :1883`), an incorrect DSN, or the `lacert` user
-lacking read permission on the env file.
+lacking read permission on the env file. A taken TCP or REST port is treated as a
+startup failure: the gateway exits immediately with a non-zero code and logs a
+line saying the port could not be bound, with the address.
 
 **I upgraded the version — the dashboard is empty / data is "not coming" from
 the database.** Three usual causes, in descending order of frequency:
