@@ -40,15 +40,16 @@
 static const char *TAG = "lacert";
 
 // ---------------------------------------------------------------------------
-// Настройки стенда. Проще всего задать здесь; при желании вынести в menuconfig.
+// Личные настройки платы — сеть, адрес шлюза, идентификатор, токен — живут в
+// lacert_config.h, который не публикуется. Образец лежит рядом:
+// lacert_config.example.h. Прежде настройки были здесь, и пароль сети вместе
+// с токеном шлюза уезжали в репозиторий с каждым выпуском.
 // ---------------------------------------------------------------------------
-#define LACERT_WIFI_SSID      "Samsung"
-#define LACERT_WIFI_PASS      "1234567890"
-#define LACERT_GW_HOST        "10.198.73.104"   // IP шлюза в локальной сети
-#define LACERT_GW_HTTP_PORT   8080
-#define LACERT_GW_TCP_PORT    7700
-#define LACERT_DEVICE_ID      "esp32-c6"
-#define LACERT_ADMIN_TOKEN    "6081c41ad5516ffece7ba37e43ed420c7c5d177db8b9a932734c86c4dc937a8e"               // токен шлюза, если включён
+#if __has_include("lacert_config.h")
+#include "lacert_config.h"
+#else
+#error "Нет lacert_config.h: скопируйте lacert_config.example.h в lacert_config.h и заполните"
+#endif
 
 #define TELEMETRY_PERIOD_MS   2000
 #define RECONNECT_DELAY_MS    2000
@@ -90,7 +91,7 @@ static int64_t s_fw_sign_us;     // подпись ответа на прове�
 #endif
 
 // ---------------------------------------------------------------------------
-// ИНДИКАЦИЯ СВЕТОДИОДОМ. Поддержаны два типа плат — выберите свой:
+// ИНДИКАЦИЯ СВЕТОДИОДОМ. Тип платы задаётся LACERT_LED_MODE в lacert_config.h:
 //
 //   1 = простой одноцветный светодиод (XIAO ESP32-S3 / XIAO ESP32-C6)
 //   2 = адресный RGB WS2812 (ESP32-S3-DevKitC-1 и подобные)
@@ -98,7 +99,9 @@ static int64_t s_fw_sign_us;     // подпись ответа на прове�
 // Разница принципиальная: адресный RGB управляется импульсным протоколом
 // (через RMT), обычным gpio_set_level его не зажечь.
 // ---------------------------------------------------------------------------
-#define LACERT_LED_MODE          1     // <-- 1 для XIAO, 2 для DevKitC-1 с RGB
+#ifndef LACERT_LED_MODE
+#define LACERT_LED_MODE          1
+#endif
 
 // --- Режим 1: простой светодиод ---
 // На XIAO светодиод ИНВЕРСНЫЙ: горит при НИЗКОМ уровне (частая ловушка).

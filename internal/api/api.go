@@ -13,9 +13,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"lacert/internal/crypto"
@@ -164,11 +166,19 @@ func securityHeaders(next http.Handler) http.Handler {
 // константное время, чтобы не давать атакующему канал для тайминг-атаки на
 // угадывание токена побайтово.
 func adminAuth(expectedToken string) func(http.Handler) http.Handler {
+	limiter := newAuthLimiter(authFailLimit, authFailWindow)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ip := clientIP(r)
+			if wait, blocked := limiter.blocked(ip, time.Now()); blocked {
+				w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+				writeError(w, http.StatusTooManyRequests, errTooManyAuthFailures)
+				return
+			}
 			authHeader := r.Header.Get("Authorization")
 			token, ok := strings.CutPrefix(authHeader, "Bearer ")
 			if !ok || subtle.ConstantTimeCompare([]byte(token), []byte(expectedToken)) != 1 {
+				limiter.fail(ip, time.Now())
 				writeError(w, http.StatusUnauthorized, errUnauthorized)
 				return
 			}
@@ -177,7 +187,83 @@ func adminAuth(expectedToken string) func(http.Handler) http.Handler {
 	}
 }
 
-var errUnauthorized = httpError("unauthorized: missing or invalid Authorization: Bearer <token>")
+var (
+	errUnauthorized        = httpError("unauthorized: missing or invalid Authorization: Bearer <token>")
+	errTooManyAuthFailures = httpError("too many failed authorization attempts, try later")
+)
+
+// Ограничение подбора токена. Один статический токен на 64 знака подобрать
+// нельзя, но до 1.4.9 неверный ответ приходил мгновенно и сколько угодно раз —
+// защита тут стоит десять строк и снимает вопрос целиком. Считаются только
+// неудачные попытки по адресу клиента, удачные запросы и дашборд она не
+// задевает: панель ходит с верным токеном.
+const (
+	authFailLimit  = 10          // неудач в окне, после которых адрес получает 429
+	authFailWindow = time.Minute // длина окна
+)
+
+type authLimiter struct {
+	mu     sync.Mutex
+	limit  int
+	window time.Duration
+	fails  map[string]*failRecord
+}
+
+type failRecord struct {
+	count int
+	since time.Time
+}
+
+func newAuthLimiter(limit int, window time.Duration) *authLimiter {
+	return &authLimiter{limit: limit, window: window, fails: make(map[string]*failRecord)}
+}
+
+// blocked отвечает, заблокирован ли адрес, и сколько ждать до конца окна.
+func (l *authLimiter) blocked(ip string, now time.Time) (time.Duration, bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	rec, ok := l.fails[ip]
+	if !ok {
+		return 0, false
+	}
+	if now.Sub(rec.since) >= l.window {
+		delete(l.fails, ip)
+		return 0, false
+	}
+	if rec.count < l.limit {
+		return 0, false
+	}
+	return l.window - now.Sub(rec.since), true
+}
+
+// fail запоминает неудачу и заодно выбрасывает протухшие записи, чтобы карта
+// не росла от случайных адресов бесконечно.
+func (l *authLimiter) fail(ip string, now time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for k, rec := range l.fails {
+		if now.Sub(rec.since) >= l.window {
+			delete(l.fails, k)
+		}
+	}
+	rec, ok := l.fails[ip]
+	if !ok {
+		l.fails[ip] = &failRecord{count: 1, since: now}
+		return
+	}
+	rec.count++
+}
+
+// clientIP — адрес клиента без порта. Заголовки вроде X-Forwarded-For
+// намеренно не читаются: шлюз отдаёт панель сам, без прокси, а доверять
+// заголовку, который может выставить кто угодно, значит дать обход лимита.
+func clientIP(r *http.Request) string {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
 
 type httpError string
 

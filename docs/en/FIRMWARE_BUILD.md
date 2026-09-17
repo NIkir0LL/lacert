@@ -38,7 +38,12 @@ produced and fits into the application partition.
 
 ## Before building: configure the bench
 
-Fill these in at the top of `main/main.c`:
+The board's private settings live in a separate file that never enters the
+repository. Copy the template and fill it in:
+
+```bash
+cp main/lacert_config.example.h main/lacert_config.h
+```
 
 ```c
 #define LACERT_WIFI_SSID      "your_network_name"
@@ -46,18 +51,25 @@ Fill these in at the top of `main/main.c`:
 #define LACERT_GW_HOST        "192.168.1.10"   // gateway IP on the local network
 #define LACERT_GW_HTTP_PORT   8080
 #define LACERT_GW_TCP_PORT    7700
-#define LACERT_DEVICE_ID      "xiao-esp32-1"   // unique per board!
+#define LACERT_DEVICE_ID      "xiao-esp32-1"   // unique per board
 #define LACERT_ADMIN_TOKEN    ""               // gateway token, if enabled
 
 #define LACERT_LED_MODE       1    // 1 = plain LED (XIAO)
                                    // 2 = addressable RGB WS2812 (ESP32-S3-DevKitC-1)
 ```
 
+Without `lacert_config.h` the build stops with an error naming that file.
+Earlier the settings were set directly in `main/main.c`, and the Wi-Fi password
+together with the gateway token went into the repository with every release.
+Now `main.c` does not contain them, the file is in `.gitignore`, and both the
+release builder and the hygiene check make sure filled-in values do not appear
+in published files.
+
 **About the LED.** The XIAO has a plain single-color LED (mode 1). The
 ESP32-S3-DevKitC-1 has an addressable RGB WS2812 (mode 2), which is driven by a
 pulse protocol and will not light up from a plain `gpio_set_level`. Set the mode
 that matches your board. The pins (`LACERT_LED_GPIO` for the XIAO,
-`LACERT_RGB_GPIO` for the DevKitC-1) are defined in the same place and can be
+`LACERT_RGB_GPIO` for the DevKitC-1) are defined in `main/main.c` and can be
 changed if needed.
 
 What the LED indicates:

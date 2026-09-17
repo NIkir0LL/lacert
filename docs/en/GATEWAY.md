@@ -121,6 +121,13 @@ If `LACERT_ADMIN_TOKEN` is set, these routes require the header
 `Authorization: Bearer <token>`. If no token is set, authentication is disabled
 — convenient for local development, **not for production**.
 
+Token guessing is limited: after ten wrong attempts within a minute from one
+address, the gateway answers `429` with a `Retry-After` header until the minute
+is over, even to the right token. Successful requests are not counted, so the
+dashboard with a valid token never notices the limit. The address is taken from
+the connection, headers such as `X-Forwarded-For` are not read — otherwise the
+limit could be bypassed with a single request line.
+
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/api/v1/devices` | list devices and their status |

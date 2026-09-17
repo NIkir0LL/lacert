@@ -449,6 +449,15 @@ n=$(grep -rniE '(token|password|secret)[[:space:]]*[:=][[:space:]]*"[A-Za-z0-9+/
     --include='*.go' . 2>/dev/null | grep -v vendor | grep -v _test | wc -l)
 if [ "$n" = "0" ]; then ok "жёстко заданных секретов не найдено"; else bad "возможные секреты: $n"; FAILED=1; fi
 
+# Прошивка. До 1.4.9 пароль сети и токен шлюза лежали прямо в main.c и
+# уезжали в репозиторий с каждым выпуском, а проверка выше искала только в Go.
+# Теперь личные настройки живут в lacert_config.h, который не публикуется, а
+# в остальных файлах прошивки заполненных значений быть не должно.
+n=$(grep -rnE 'define[[:space:]]+LACERT_(WIFI_PASS|ADMIN_TOKEN)[[:space:]]+"[^"]+"' \
+    --include='*.c' --include='*.h' firmware bench 2>/dev/null \
+    | grep -v 'lacert_config\.h' | grep -v 'lacert_config\.example\.h' | wc -l)
+if [ "$n" = "0" ]; then ok "пароль и токен вне lacert_config.h не заданы"; else bad "заполненный пароль или токен в публикуемом файле прошивки: $n"; FAILED=1; fi
+
 printf '\n\033[1;36m━━━ ИТОГ ━━━\033[0m\n'
 if [ "$FAILED" = "0" ]; then
   ok "документация сходится с кодом"
