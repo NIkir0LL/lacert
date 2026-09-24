@@ -6,6 +6,7 @@ idf_component_register(
         "main.c"
         "lacert_wire.c"
         "lacert_crypto.c"
+        "lacert_tag.c"
         "lacert_client.c"
     INCLUDE_DIRS "."
     REQUIRES

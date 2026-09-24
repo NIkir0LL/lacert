@@ -50,6 +50,14 @@ static const char *TAG = "lacert";
 #else
 #error "Нет lacert_config.h: скопируйте lacert_config.example.h в lacert_config.h и заполните"
 #endif
+// Идентификатор длиннее предела шлюза раньше молча обрезался при копировании
+// в сессию, и плата регистрировалась под усечённым именем. Теперь это ошибка
+// сборки.
+// Текст латиницей: в отличие от #error, сообщение _Static_assert компилятор
+// печатает с экранированием, и кириллица в нём нечитаема.
+_Static_assert(sizeof(LACERT_DEVICE_ID) - 1 <= LACERT_DEVICE_ID_MAX,
+               "LACERT_DEVICE_ID is longer than LACERT_DEVICE_ID_MAX (see lacert_proto.h)");
+_Static_assert(sizeof(LACERT_DEVICE_ID) > 1, "LACERT_DEVICE_ID is empty");
 
 #define TELEMETRY_PERIOD_MS   2000
 #define RECONNECT_DELAY_MS    2000
@@ -330,16 +338,6 @@ static void to_hex(const uint8_t *b, size_t n, char *out) {
     for (size_t i = 0; i < n; i++) { out[2*i] = h[b[i] >> 4]; out[2*i+1] = h[b[i] & 15]; }
     out[2*n] = 0;
 }
-static int from_hex(const char *h, uint8_t *out, int maxlen) {
-    int n = 0;
-    while (h[0] && h[1] && h[0] != '"' && n < maxlen) {
-        int hi = (h[0] <= '9') ? h[0]-'0' : (h[0]|32)-'a'+10;
-        int lo = (h[1] <= '9') ? h[1]-'0' : (h[1]|32)-'a'+10;
-        out[n++] = (hi << 4) | lo; h += 2;
-    }
-    return n;
-}
-
 // Буфер ответа HTTP. Флаг truncated поднимается, если ответ не поместился:
 // без него данные молча отбрасывались, а вызывающий код разбирал обрезанный
 // JSON и получал невнятную ошибку разбора вместо понятной причины.
@@ -427,43 +425,27 @@ static bool register_device(lacert_session_t *s) {
 }
 
 // Получить публичный ML-KEM-ключ шлюза.
-static bool fetch_gateway_key(lacert_session_t *s) {
+// Проба живости шлюза: GET /healthz. До 1.4.10 здесь запрашивался публичный
+// ML-KEM шлюза, и устройство не стартовало и не переподключалось, пока не
+// получит его — хотя ключ нигде не использовался: секрет рукопожатия
+// инкапсулируется под ключ устройства, а ротацию инициирует шлюз. Ждать шлюз
+// перед TCP по-прежнему полезно, но ждать надо ответа, а не значения.
+static bool gateway_reachable(void) {
     char url[128];
-    snprintf(url, sizeof(url), "http://%s:%d/api/v1/gateway",
+    snprintf(url, sizeof(url), "http://%s:%d/healthz",
              LACERT_GW_HOST, LACERT_GW_HTTP_PORT);
-
-    int cap = 2*LACERT_KEM_PUBKEY_SIZE + 512;
-    char *resp = malloc(cap);
-    if (!resp) return false;
-    resp[0] = 0;
-    http_resp_t r = { .buf = resp, .len = 0, .cap = cap, .truncated = false };
-
+    char resp[64]; resp[0] = 0;
+    http_resp_t r = { .buf = resp, .len = 0, .cap = sizeof(resp), .truncated = false };
     esp_http_client_config_t cfg = {
         .url = url, .method = HTTP_METHOD_GET,
         .event_handler = http_evt, .user_data = &r, .timeout_ms = 8000,
     };
     esp_http_client_handle_t c = esp_http_client_init(&cfg);
-    bool ok = false;
-    // Запрос выполняем первым: флаг truncated поднимается обработчиком событий
-    // во время передачи, до неё он всегда сброшен.
     esp_err_t perr = esp_http_client_perform(c);
     int status = esp_http_client_get_status_code(c);
-    if (r.truncated) {
-        // Обрезанный ответ разбирать бессмысленно: ключ в нём заведомо неполный.
-        ESP_LOGW(TAG, "ответ шлюза не поместился в буфер (%d байт), разбор пропущен", cap);
-    } else if (perr == ESP_OK && status == 200) {
-        char *kp = strstr(resp, "kem_pub_hex");
-        if (kp && (kp = strchr(kp, ':')) && (kp = strchr(kp, '"'))) {
-            kp++;
-            if (from_hex(kp, s->gw_kem_pub, LACERT_KEM_PUBKEY_SIZE) == LACERT_KEM_PUBKEY_SIZE) {
-                ESP_LOGI(TAG, "публичный ML-KEM шлюза получен");
-                ok = true;
-            }
-        }
-    }
-    if (!ok) ESP_LOGE(TAG, "не удалось получить ключ шлюза");
     esp_http_client_cleanup(c);
-    free(resp);
+    bool ok = (perr == ESP_OK && status == 200);
+    if (!ok) ESP_LOGE(TAG, "шлюз не отвечает на /healthz");
     return ok;
 }
 
@@ -766,13 +748,6 @@ void app_main(void) {
         led_event(LED_EV_ERROR);
         vTaskDelay(pdMS_TO_TICKS(GATEWAY_RETRY_DELAY_MS));
     }
-    while (!fetch_gateway_key(&s)) {
-        ESP_LOGW(TAG, "шлюз недоступен (ключ) — повтор через %d мс",
-                 GATEWAY_RETRY_DELAY_MS);
-        led_event(LED_EV_ERROR);
-        vTaskDelay(pdMS_TO_TICKS(GATEWAY_RETRY_DELAY_MS));
-    }
-
     // Основной цикл: сессия, при разрыве — переподключение.
     int seq = 0;
     int handshake_failures = 0;
@@ -786,10 +761,8 @@ void app_main(void) {
         ESP_LOGW(TAG, "переподключение через %d мс...", RECONNECT_DELAY_MS);
         vTaskDelay(pdMS_TO_TICKS(RECONNECT_DELAY_MS));
 
-        // Обновляем публичный ключ шлюза: при перезапуске шлюз генерирует новую
-        // пару, и рукопожатие со старым ключом заведомо провалится. Если шлюз
-        // ещё не поднялся — ждём его здесь, а не бьёмся в TCP впустую.
-        while (!fetch_gateway_key(&s)) {
+        // Если шлюз ещё не поднялся — ждём его здесь, а не бьёмся в TCP впустую.
+        while (!gateway_reachable()) {
             ESP_LOGW(TAG, "шлюз недоступен — жду %d мс", GATEWAY_RETRY_DELAY_MS);
             vTaskDelay(pdMS_TO_TICKS(GATEWAY_RETRY_DELAY_MS));
         }

@@ -16,6 +16,10 @@ firmware/sdkconfig
 firmware/sdkconfig.old
 # личные настройки платы: сеть, токен — не публикуются, образец рядом
 firmware/main/lacert_config.h
+# артефакты Linux-сборки прошивки: бинарник, ключи тестового устройства, бенчмарк
+firmware/linux-debug/lacert-client
+firmware/linux-debug/lacert_device.keys
+firmware/linux-debug/bench_host
 firmware/components/ml_kem/
 firmware/components/blake3/
 

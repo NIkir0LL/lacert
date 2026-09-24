@@ -16,14 +16,18 @@ is organised.
 | `main/lacert_wire.{c,h}` | framing: reading and writing frames, packing fields | shared |
 | `main/lacert_client.{c,h}` | protocol logic: handshake, data, rotation, firmware checks | shared |
 | `main/lacert_crypto.{c,h}` | primitives via mbedTLS plus components | ESP32 |
+| `main/lacert_tag.c` | authenticity tags of control frames (BLAKE3) | shared |
 | `main/main.c` | entry point: Wi-Fi, keys in NVS, enrollment, main loop, reconnection | ESP32 |
 | `components/ml_kem/` | ML-KEM-1024 (PQClean) + the ESP32 randomness source | ESP32 |
 | `components/blake3/` | BLAKE3 (portable implementation) | ESP32 |
 
-**Important:** `lacert_wire.c` and `lacert_client.c` are platform-independent.
-Exactly the same files build for Linux (`firmware/linux-debug/`) and are tested
-against the gateway without hardware. Only the crypto layer (mbedTLS on the
-ESP32 versus OpenSSL on Linux) and the entry point differ.
+**Important:** `lacert_wire.c`, `lacert_client.c` and `lacert_tag.c` are
+platform-independent. Exactly the same files build for Linux
+(`firmware/linux-debug/`) and are tested against the gateway without hardware.
+Only the crypto layer (mbedTLS on the ESP32 versus OpenSSL on Linux) and the
+entry point differ. The authenticity tags moved into their own file in 1.4.10:
+while they lived in `lacert_crypto.c`, the Linux build did not get them and had
+not compiled since 1.3.0.
 
 ## Cryptographic layer
 

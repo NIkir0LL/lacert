@@ -7,8 +7,8 @@ can be debugged against a running Go gateway **without ESP32 hardware**. It
 speeds development up considerably: rebuilds take seconds, and you get a normal
 gdb session and memory sanitizers.
 
-The client uses the **same** `../main/lacert_wire.c` and
-`../main/lacert_client.c` as the ESP32 firmware, so what you exercise is exactly
+The client uses the **same** `../main/lacert_wire.c`, `../main/lacert_client.c`
+and `../main/lacert_tag.c` as the ESP32 firmware, so what you exercise is exactly
 the protocol logic that will ship to the board. Only the crypto layer differs:
 here it is OpenSSL (`lacert_crypto_linux.c`) instead of mbedTLS, but the
 primitives are the same (ECDSA P-256, ChaCha20-Poly1305, SHA-256, ML-KEM-1024,

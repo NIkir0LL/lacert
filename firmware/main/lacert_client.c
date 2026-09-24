@@ -10,23 +10,24 @@
 
 // Собрать канонические байты Msg1: putFramed(device_id)||nonce||putFramed(id_pub)
 // Используется и для отправки, и для транскрипта — формат одинаков (раздел 3.3).
-static size_t build_msg1_bytes(lacert_session_t *s, uint8_t *buf) {
-    size_t off = 0;
-    off = lacert_put_framed(buf, off, (const uint8_t*)s->device_id, strlen(s->device_id));
+// Возвращает 0, если buf вместимостью cap не хватает.
+static size_t build_msg1_bytes(lacert_session_t *s, uint8_t *buf, size_t cap) {
+    size_t off = lacert_put_framed(buf, cap, 0, (const uint8_t*)s->device_id, strlen(s->device_id));
+    if (off == 0 || cap - off < LACERT_HANDSHAKE_NONCE_SIZE) return 0;
     memcpy(buf + off, s->last_nonce, LACERT_HANDSHAKE_NONCE_SIZE);
     off += LACERT_HANDSHAKE_NONCE_SIZE;
-    off = lacert_put_framed(buf, off, s->id.ecdsa_pub, LACERT_ECDSA_PUB_SIZE);
-    return off;
+    return lacert_put_framed(buf, cap, off, s->id.ecdsa_pub, LACERT_ECDSA_PUB_SIZE);
 }
+// Наибольший Msg1: поле идентификатора, nonce, поле ключа.
+#define LACERT_MSG1_MAX (2 + LACERT_DEVICE_ID_MAX + LACERT_HANDSHAKE_NONCE_SIZE + 2 + LACERT_ECDSA_PUB_SIZE)
 
 // Собрать канонические байты Msg2: putFramed(kem_ct)||gw_nonce
 static size_t build_msg2_bytes(const uint8_t *kem_ct, size_t kem_ct_len,
-                               const uint8_t *gw_nonce, uint8_t *buf) {
-    size_t off = 0;
-    off = lacert_put_framed(buf, off, kem_ct, kem_ct_len);
+                               const uint8_t *gw_nonce, uint8_t *buf, size_t cap) {
+    size_t off = lacert_put_framed(buf, cap, 0, kem_ct, kem_ct_len);
+    if (off == 0 || cap - off < LACERT_HANDSHAKE_NONCE_SIZE) return 0;
     memcpy(buf + off, gw_nonce, LACERT_HANDSHAKE_NONCE_SIZE);
-    off += LACERT_HANDSHAKE_NONCE_SIZE;
-    return off;
+    return off + LACERT_HANDSHAKE_NONCE_SIZE;
 }
 
 lacert_err_t lacert_do_handshake(lacert_session_t *s) {
@@ -36,8 +37,9 @@ lacert_err_t lacert_do_handshake(lacert_session_t *s) {
     e = lacert_random(s->last_nonce, LACERT_HANDSHAKE_NONCE_SIZE);
     if (e != LACERT_OK) return e;
 
-    uint8_t m1[128 + LACERT_ECDSA_PUB_SIZE];
-    size_t m1_len = build_msg1_bytes(s, m1);
+    uint8_t m1[LACERT_MSG1_MAX];
+    size_t m1_len = build_msg1_bytes(s, m1, sizeof(m1));
+    if (m1_len == 0) return LACERT_ERR_STATE; // идентификатор длиннее предела
     e = lacert_write_frame(s->sock, LACERT_MSG_HANDSHAKE1, m1, m1_len);
     if (e != LACERT_OK) return e;
 
@@ -77,8 +79,9 @@ lacert_err_t lacert_do_handshake(lacert_session_t *s) {
 
     // --- transcript = BLAKE3(msg1_bytes || msg2_bytes) ---
     uint8_t m2[8 + LACERT_KEM_CIPHERTEXT_SIZE + LACERT_HANDSHAKE_NONCE_SIZE];
-    size_t m2_len = build_msg2_bytes(kem_ct, kem_ct_len, gw_nonce, m2);
+    size_t m2_len = build_msg2_bytes(kem_ct, kem_ct_len, gw_nonce, m2, sizeof(m2));
     free(payload); // gw_nonce/kem_ct скопированы в m2, payload больше не нужен
+    if (m2_len == 0) { memset(shared, 0, sizeof(shared)); return LACERT_ERR_DECODE; }
 
     uint8_t transcript[32];
     { const uint8_t *parts[2] = { m1, m2 };
@@ -90,24 +93,31 @@ lacert_err_t lacert_do_handshake(lacert_session_t *s) {
     { const uint8_t *parts[3] = { shared, transcript, (const uint8_t*)LACERT_SEP_HANDSHAKE };
       const size_t   lens[3]  = { LACERT_KEM_SHARED_SIZE, 32, strlen(LACERT_SEP_HANDSHAKE) };
       e = lacert_blake3(parts, lens, 3, s->session_key);
+      memset(shared, 0, sizeof(shared)); // затираем секрет на любом исходе
       if (e != LACERT_OK) return e; }
-    memset(shared, 0, sizeof(shared)); // затираем секрет
 
     // --- confirm = BLAKE3(transcript || "confirm" || K0) ---
     uint8_t confirm[32];
     { const uint8_t *parts[3] = { transcript, (const uint8_t*)LACERT_SEP_CONFIRM, s->session_key };
       const size_t   lens[3]  = { 32, strlen(LACERT_SEP_CONFIRM), LACERT_SESSION_KEY_SIZE };
       e = lacert_blake3(parts, lens, 3, confirm);
-      if (e != LACERT_OK) return e; }
+      if (e != LACERT_OK) { memset(confirm, 0, sizeof(confirm)); return e; } }
 
     // --- подпись confirm и отправка Msg3 ---
+    // До 1.4.10 ранние выходы ниже оставляли на стеке confirm (производную
+    // ключа сессии) и подпись незатёртыми. Теперь оба буфера чистятся на
+    // каждом пути выхода, удачном и неудачном.
     uint8_t sig[LACERT_MAX_SIG_SIZE]; size_t sig_len = 0;
-    e = lacert_ecdsa_sign(s->id.ecdsa_priv, confirm, sizeof(confirm), sig, &sig_len);
-    if (e != LACERT_OK) return e;
-
     uint8_t m3[2 + LACERT_MAX_SIG_SIZE];
-    size_t m3_len = lacert_put_framed(m3, 0, sig, sig_len);
-    e = lacert_write_frame(s->sock, LACERT_MSG_HANDSHAKE3, m3, m3_len);
+    e = lacert_ecdsa_sign(s->id.ecdsa_priv, confirm, sizeof(confirm), sig, &sig_len);
+    if (e == LACERT_OK) {
+        size_t m3_len = lacert_put_framed(m3, sizeof(m3), 0, sig, sig_len);
+        if (m3_len == 0) e = LACERT_ERR_CRYPTO;
+        else e = lacert_write_frame(s->sock, LACERT_MSG_HANDSHAKE3, m3, m3_len);
+    }
+    memset(confirm, 0, sizeof(confirm));
+    memset(sig, 0, sizeof(sig));
+    memset(m3, 0, sizeof(m3));
     if (e != LACERT_OK) return e;
 
     s->iteration = 0;
@@ -137,9 +147,10 @@ lacert_err_t lacert_send_data(lacert_session_t *s, const char *payload) {
     // payload кадра: putFramed(nonce) || putFramed(ciphertext)
     uint8_t *buf = malloc(2 + LACERT_CHACHA_NONCE_SIZE + 2 + ct_len);
     if (!buf) { free(ct); return LACERT_ERR_IO; }
-    size_t off = 0;
-    off = lacert_put_framed(buf, off, nonce, LACERT_CHACHA_NONCE_SIZE);
-    off = lacert_put_framed(buf, off, ct, ct_len);
+    size_t cap = 2 + LACERT_CHACHA_NONCE_SIZE + 2 + ct_len;
+    size_t off = lacert_put_framed(buf, cap, 0, nonce, LACERT_CHACHA_NONCE_SIZE);
+    if (off) off = lacert_put_framed(buf, cap, off, ct, ct_len);
+    if (off == 0) { free(ct); free(buf); return LACERT_ERR_STATE; }
     e = lacert_write_frame(s->sock, LACERT_MSG_DATA, buf, off);
     free(ct); free(buf);
     return e;
@@ -235,7 +246,8 @@ static lacert_err_t handle_fw_challenge(lacert_session_t *s,
     // payload: firmware_hash(32, БЕЗ префикса) || putFramed(signature)
     uint8_t buf[LACERT_FW_HASH_SIZE + 2 + LACERT_MAX_SIG_SIZE];
     memcpy(buf, s->firmware_image_hash, LACERT_FW_HASH_SIZE);
-    size_t o = lacert_put_framed(buf, LACERT_FW_HASH_SIZE, sig, sig_len);
+    size_t o = lacert_put_framed(buf, sizeof(buf), LACERT_FW_HASH_SIZE, sig, sig_len);
+    if (o == 0) return LACERT_ERR_CRYPTO;
     return lacert_write_frame(s->sock, LACERT_MSG_FW_RESPONSE, buf, o);
 }
 

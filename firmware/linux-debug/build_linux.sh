@@ -45,6 +45,7 @@ gcc -O2 -std=c11 -Wall -Wno-deprecated-declarations \
   -DBLAKE3_NO_SSE2 -DBLAKE3_NO_SSE41 -DBLAKE3_NO_AVX2 -DBLAKE3_NO_AVX512 \
   "$FW_MAIN/lacert_wire.c" \
   "$FW_MAIN/lacert_client.c" \
+  "$FW_MAIN/lacert_tag.c" \
   "$LINUX_DIR/lacert_crypto_linux.c" \
   "$LINUX_DIR/main_linux.c" \
   "$KEM_DIR"/*.c \

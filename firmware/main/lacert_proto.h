@@ -60,6 +60,9 @@ typedef enum {
 } lacert_sig_alg_t;
 
 // Код результата операций.
+// Предел длины идентификатора устройства — тот же, что у шлюза.
+#define LACERT_DEVICE_ID_MAX 128
+
 typedef enum {
     LACERT_OK = 0,
     LACERT_ERR_IO = -1,          // сеть/сокет

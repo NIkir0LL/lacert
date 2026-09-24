@@ -148,17 +148,14 @@ static int register_device(const char *host, int http_port,
     return 0;
 }
 
-static int fetch_gateway_key(const char *host, int http_port, lacert_session_t *s){
-    char req[512], resp[8192];
+// Проба живости шлюза, как на плате: GET /healthz. Ключ шлюза устройству не
+// нужен, см. пояснение в main/main.c.
+static int gateway_reachable(const char *host, int http_port){
+    char req[256], resp[512];
     snprintf(req, sizeof(req),
-        "GET /api/v1/gateway HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host);
+        "GET /healthz HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", host);
     if (http_request(host, http_port, req, resp, sizeof(resp)) < 0) return -1;
-    char *kp = strstr(resp, "kem_pub_hex");
-    if (!kp) return -1;
-    kp = strchr(kp, ':'); if (!kp) return -1;
-    kp = strchr(kp, '"'); if (!kp) return -1; kp++;
-    from_hex(kp, s->gw_kem_pub, LACERT_KEM_PUBKEY_SIZE);
-    return 0;
+    return strstr(resp, " 200 ") ? 0 : -1;
 }
 
 static int tcp_connect(const char *host, int tcp_port){
@@ -288,11 +285,6 @@ int main(int argc, char **argv){
     if (fresh_keys)
         printf("(первый запуск: firmware_hash зафиксирован при регистрации)\n");
 
-    if (fetch_gateway_key(host, http_port, &s) < 0) {
-        fprintf(stderr, "не удалось получить публичный ключ шлюза\n"); return 1;
-    }
-    printf("Публичный ML-KEM шлюза получен\n");
-
     printf("=== Работаю %d секунд, с переподключением при разрыве ===\n", run_seconds);
     time_t deadline = time(NULL) + run_seconds;
     int seq = 0, rot_total = 0, fw_total = 0, reconnects = 0;
@@ -310,9 +302,8 @@ int main(int argc, char **argv){
         printf("  ... переподключение через 2с (попытка %d)\n", reconnects);
         sleep(2);
 
-        // Шлюз мог перезапуститься и сгенерировать новую пару ключей —
-        // обновляем его публичный ключ, иначе рукопожатие заведомо провалится.
-        while (fetch_gateway_key(host, http_port, &s) < 0) {
+        // Если шлюз ещё не поднялся — ждём его, а не бьёмся в TCP впустую.
+        while (gateway_reachable(host, http_port) < 0) {
             printf("  [!] шлюз недоступен — жду 3с\n");
             sleep(3);
             if (time(NULL) >= deadline) break;

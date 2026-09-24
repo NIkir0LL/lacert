@@ -120,7 +120,26 @@ go test ./internal/crypto/ -bench 'FullHandshake' \
   | grep -E '^Benchmark' | sed 's/-[0-9]*\s\+/  /' | sed 's/^/    /' 
 
 # ─────────────────────────────────────────────────────────────
-say "11. Сверка документации с кодом и гигиена дерева"
+# Linux-сборка прошивки не собиралась с 1.3.0 до 1.4.10, и никто не заметил:
+# её не гонял ни один конвейер. Раздел собирает её, если зависимости на месте
+# (mbedTLS, OpenSSL, BLAKE3 и PQClean по путям из build_linux.sh), иначе
+# предупреждает и идёт дальше.
+say "11. Linux-сборка прошивки"
+if [ -f firmware/linux-debug/build_linux.sh ] && [ -f /usr/include/openssl/ec.h ] \
+   && [ -d "${BLAKE3_DIR:-$HOME/BLAKE3/c}" ] && [ -d "${PQCLEAN_DIR:-$HOME/PQClean}" ]; then
+  if (cd firmware/linux-debug && bash build_linux.sh >/tmp/lacert-linux-build.log 2>&1); then
+    ok "клиент прошивки собирается на хосте"
+    rm -f firmware/linux-debug/lacert-client
+  else
+    bad "Linux-сборка прошивки не прошла (лог: /tmp/lacert-linux-build.log)"; FAILED=1
+  fi
+else
+  warn "Linux-сборка прошивки пропущена: нужны OpenSSL, mbedTLS, ~/BLAKE3 и ~/PQClean"
+  inf "см. docs/ru/LINUX_DEBUG.md"
+fi
+
+# ─────────────────────────────────────────────────────────────
+say "12. Сверка документации с кодом и гигиена дерева"
 if [ -f check-docs.sh ]; then
   if bash check-docs.sh >/tmp/lacert-check-docs.log 2>&1; then
     ok "документация сходится с кодом"

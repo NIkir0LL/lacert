@@ -69,8 +69,10 @@ lacert_err_t lacert_read_frame(int sock, uint8_t *msg_type,
     return LACERT_OK;
 }
 
-size_t lacert_put_framed(uint8_t *buf, size_t off,
+size_t lacert_put_framed(uint8_t *buf, size_t cap, size_t off,
                          const uint8_t *data, size_t len){
+    if (len > 0xFFFF) return 0;
+    if (off > cap || cap - off < 2 + len) return 0;
     lacert_put_u16(buf + off, (uint16_t)len);
     off += 2;
     if (len > 0) { memcpy(buf + off, data, len); off += len; }
