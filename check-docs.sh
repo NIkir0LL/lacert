@@ -320,6 +320,10 @@ import re, os, sys
 
 # каталоги, которых в репозитории нет намеренно
 GENERATED = ("firmware/components", "bench/components", "firmware/build", "bench/build")
+# Личные настройки платы: файл создаётся копией образца и в репозиторий не
+# попадает (он в .gitignore), поэтому в дереве его нет, а в документации он
+# упоминается законно.
+PRIVATE = ("firmware/main/lacert_config.h",)
 
 problems = checked = 0
 for lang in ("ru", "en"):
@@ -330,7 +334,7 @@ for lang in ("ru", "en"):
         for i, line in enumerate(open(os.path.join(d, fn), encoding="utf-8"), 1):
             for path in re.findall(r"`((?:internal|cmd|firmware|bench|deploy|docs)/[\w./-]+)`", line):
                 p = path.rstrip("/")
-                if any(p.startswith(g) for g in GENERATED): continue
+                if any(p.startswith(g) for g in GENERATED) or p in PRIVATE: continue
                 # ссылка на функцию: имя пакета, точка, имя с заглавной или строчной
                 if re.search(r"/[\w-]+\.[A-Za-z]\w*$", p) and not re.search(r"\.(go|c|h|md|sh|css|js|html|yml|csv)$", p):
                     continue

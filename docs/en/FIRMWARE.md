@@ -109,7 +109,7 @@ on the gateway helps temporarily.
 
 ## LED indication
 
-The mode is chosen by the `LACERT_LED_MODE` macro at the top of `main.c`:
+The mode is chosen by the `LACERT_LED_MODE` macro in `main/lacert_config.h`:
 
 - **1** — a plain single-color LED (XIAO). Pin `LACERT_LED_GPIO`
   (S3 = 21, C6 = 15), active-low (`LACERT_LED_ACTIVE_LOW = 1`).
@@ -132,7 +132,9 @@ enabled on the S3-N8R2.
 
 ## Bench settings
 
-At the top of `main.c`:
+The board's private settings live in `main/lacert_config.h`, a copy of the
+`lacert_config.example.h` template. The file is not published, only the template
+is in the repository:
 
 ```c
 #define LACERT_WIFI_SSID      "..."          // 2.4 GHz only

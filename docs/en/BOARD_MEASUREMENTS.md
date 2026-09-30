@@ -63,7 +63,8 @@ a hardware ECC accelerator is present).
 
 ```bash
 cd firmware
-# fill in main/main.c: Wi-Fi, gateway IP, LACERT_DEVICE_ID (unique!)
+cp main/lacert_config.example.h main/lacert_config.h
+# fill in main/lacert_config.h: Wi-Fi, gateway IP, LACERT_DEVICE_ID (unique!)
 rm -rf build sdkconfig
 idf.py set-target esp32c6        # or esp32s3
 idf.py build

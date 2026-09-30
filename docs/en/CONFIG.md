@@ -59,7 +59,8 @@ LACERT_PG_DSN=host=localhost user=lacert password=... dbname=lacert port=5432 ss
 
 If no token is set, **REST authorization is disabled** — suitable only for local
 development. The same token goes into the board's firmware
-(`LACERT_ADMIN_TOKEN` in `main.c`), which presents it during enrollment.
+(`LACERT_ADMIN_TOKEN` in `main/lacert_config.h`), which presents it during
+enrollment.
 
 ## Key rotation
 

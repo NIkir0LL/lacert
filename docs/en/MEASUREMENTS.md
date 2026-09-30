@@ -573,7 +573,8 @@ a millisecond. The limits are set by the storage subsystem and the network.
 
 ```bash
 cd firmware
-# set the network parameters and LACERT_DEVICE_ID in main/main.c
+cp main/lacert_config.example.h main/lacert_config.h
+# set the network parameters and LACERT_DEVICE_ID in main/lacert_config.h
 rm -rf build sdkconfig
 idf.py set-target esp32c6          # or esp32s3
 idf.py build

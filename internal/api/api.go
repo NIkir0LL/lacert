@@ -13,12 +13,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"lacert/internal/crypto"
 	"lacert/internal/gateway"
@@ -564,10 +566,30 @@ func (s *Server) getDeviceEvents(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) revokeDevice(w http.ResponseWriter, r *http.Request) {
 	deviceID := chi.URLParam(r, "deviceID")
+	// Тело ограничено, как у регистрации, а причина — по длине. До 1.4.11
+	// предела не было: причина любого размера ложилась в запись устройства
+	// целиком, и каждое обновление панели потом тянуло её в списке устройств.
+	// Тело на 50 МБ поднимало память шлюза с 15 до 222 МБ.
+	r.Body = http.MaxBytesReader(w, r.Body, maxRevokeBodyBytes)
 	var req struct {
 		Reason string `json:"reason"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req) // reason опционален
+	// Причина необязательна: пустое тело — законный отзыв с причиной по
+	// умолчанию. А вот слишком большое или испорченное тело — ошибка клиента,
+	// и отзыв при нём не выполняется.
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			writeError(w, http.StatusRequestEntityTooLarge, fmt.Errorf("request body exceeds %d bytes", maxRevokeBodyBytes))
+			return
+		}
+		writeError(w, http.StatusBadRequest, fmt.Errorf("invalid JSON: %w", err))
+		return
+	}
+	if n := utf8.RuneCountInString(req.Reason); n > maxRevokeReasonRunes {
+		writeError(w, http.StatusBadRequest, fmt.Errorf("reason is %d characters, limit is %d", n, maxRevokeReasonRunes))
+		return
+	}
 	if req.Reason == "" {
 		req.Reason = "отозвано вручную через REST API"
 	}
@@ -718,6 +740,13 @@ const maxTelemetryLimit = 50000
 // maxRegisterBodyBytes — предел размера тела POST /api/v1/devices. С запасом
 // над самой большой легитимной регистрацией (hex ML-KEM-ключа — ~3.1 КБ).
 const maxRegisterBodyBytes = 64 << 10
+
+// Пределы отзыва: причина — короткая строка для журнала и панели, тело с
+// ней помещается в несколько килобайт с большим запасом.
+const (
+	maxRevokeBodyBytes   = 4 << 10
+	maxRevokeReasonRunes = 256
+)
 
 // getRotations — журнал попыток ротации ключа (успешных и неудачных).
 // device_id пуст — для всех устройств (раздел "Журнал ротаций ключей").

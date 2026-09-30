@@ -140,7 +140,8 @@ mosquitto_sub -h localhost -p 1883 -t 'devices/+/telemetry' -v \\
 The firmware lives in `firmware/`. No additional configuration is needed on the
 server side — the boards connect to the same ports as the emulators.
 
-What you will need to fill into the firmware (`firmware/main/main.c`):
+What you will need to fill into the firmware's private settings
+(`firmware/main/lacert_config.h`, a copy of `lacert_config.example.h`):
 
 - **the server's IP** on the local network (`hostname -I | awk '{print $1}'`)
 - **the admin token** (`sudo grep LACERT_ADMIN_TOKEN /etc/lacert/gatewayd.env`)

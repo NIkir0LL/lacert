@@ -61,7 +61,8 @@ ESP-IDF v5.4) разницы нет: 348,2 мкс против 347,4 мкс по
 
 ```bash
 cd firmware
-# заполнить в main/main.c: Wi-Fi, IP шлюза, LACERT_DEVICE_ID (уникальный!)
+cp main/lacert_config.example.h main/lacert_config.h
+# заполнить в main/lacert_config.h: Wi-Fi, IP шлюза, LACERT_DEVICE_ID (уникальный!)
 rm -rf build sdkconfig
 idf.py set-target esp32c6        # или esp32s3
 idf.py build

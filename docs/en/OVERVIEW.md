@@ -206,7 +206,8 @@ gateway.
 
 ```bash
 cd firmware
-# fill in the settings in main/main.c (Wi-Fi, gateway IP, device_id, token)
+cp main/lacert_config.example.h main/lacert_config.h
+# fill in main/lacert_config.h: Wi-Fi, gateway IP, device_id, token
 idf.py set-target esp32s3      # or esp32c6
 idf.py build
 idf.py -p /dev/ttyUSB0 flash monitor

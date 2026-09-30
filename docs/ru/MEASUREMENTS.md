@@ -557,7 +557,8 @@ openssl req -new -x509 -key cli.key -out cli.crt -days 365 \
 
 ```bash
 cd firmware
-# в main/main.c задать параметры сети и LACERT_DEVICE_ID
+cp main/lacert_config.example.h main/lacert_config.h
+# в main/lacert_config.h задать параметры сети и LACERT_DEVICE_ID
 rm -rf build sdkconfig
 idf.py set-target esp32c6          # либо esp32s3
 idf.py build

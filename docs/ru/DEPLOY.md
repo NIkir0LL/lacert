@@ -141,7 +141,8 @@ mosquitto_sub -h localhost -p 1883 -t 'devices/+/telemetry' -v \\
 Прошивка лежит в `firmware/`. Со стороны сервера дополнительной настройки не
 нужно — платы подключаются к тем же портам, что и эмуляторы.
 
-Что понадобится вписать в прошивку (`firmware/main/main.c`):
+Что понадобится вписать в личные настройки прошивки
+(`firmware/main/lacert_config.h`, копия образца `lacert_config.example.h`):
 
 - **IP сервера** в локальной сети (`hostname -I | awk '{print $1}'`)
 - **admin-токен** (`sudo grep LACERT_ADMIN_TOKEN /etc/lacert/gatewayd.env`)

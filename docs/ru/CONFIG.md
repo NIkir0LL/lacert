@@ -58,7 +58,8 @@ LACERT_PG_DSN=host=localhost user=lacert password=... dbname=lacert port=5432 ss
 
 Если токен не задан, **авторизация REST отключена** — годится только для
 локальной разработки. Этот же токен вписывается в прошивку платы
-(`LACERT_ADMIN_TOKEN` в `main.c`), она предъявляет его при регистрации.
+(`LACERT_ADMIN_TOKEN` в `main/lacert_config.h`), она предъявляет его при
+регистрации.
 
 ## Ротация ключей
 

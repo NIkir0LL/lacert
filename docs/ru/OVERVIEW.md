@@ -201,7 +201,8 @@ sudo bash deploy/bare-metal/install.sh
 
 ```bash
 cd firmware
-# заполнить настройки в main/main.c (WiFi, IP шлюза, device_id, токен)
+cp main/lacert_config.example.h main/lacert_config.h
+# заполнить в main/lacert_config.h: WiFi, IP шлюза, device_id, токен
 idf.py set-target esp32s3      # или esp32c6
 idf.py build
 idf.py -p /dev/ttyUSB0 flash monitor
