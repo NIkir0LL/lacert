@@ -122,6 +122,14 @@ credentials the broker does not start. Channel encryption is off by default
 though, and turning it on is a deliberate step — otherwise the data leaves the
 machine in the clear.
 
+**REST and the dashboard use plain HTTP.** The admin token travels over the
+network in the clear, and anyone who can see traffic on the same network can
+capture it. It is presented not only by the browser but also by the board
+during enrollment, so HTTPS for the dashboard alone would not close the gap.
+There is no TLS setting for REST, unlike MQTT. Until there is, keep the gateway
+inside a trusted network and expose the dashboard to the outside only through a
+reverse proxy with TLS.
+
 **Debug mode exposes session keys.** The `LACERT_LOG_SESSION_KEYS` variable makes
 the gateway write session keys to its log. That exists for examining handshakes
 on the bench and must stay off everywhere except the lab.

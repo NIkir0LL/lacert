@@ -18,7 +18,10 @@ on:
 jobs:
   checks:
     name: Сборка и тесты
-    runs-on: ubuntu-latest
+    # Закреплено намеренно: ubuntu-latest 19 октября 2026 переезжает на Ubuntu 26,
+    # а шаг Linux-сборки прошивки ставит пакеты через apt. Переход делать
+    # осознанно, сменив строку здесь и проверив прогон.
+    runs-on: ubuntu-24.04
 
     services:
       postgres:
@@ -108,6 +111,12 @@ jobs:
           git clone -q --depth 1 https://github.com/BLAKE3-team/BLAKE3 "$HOME/BLAKE3"
           git clone -q --depth 1 https://github.com/PQClean/PQClean "$HOME/PQClean"
           cd firmware/linux-debug && bash build_linux.sh
+
+      - name: Фаззинг разборщиков провода
+        # Разборщики кадров принимают байты от сети и не имеют права падать
+        # ни на каком входе. Короткий прогон на каждом push — этого хватает,
+        # чтобы поймать регресс, длинные прогоны делаются вручную.
+        run: go test ./internal/wire/ -run '^$' -fuzz FuzzDecoders -fuzztime 30s
 
       - name: Демонстрация
         # Сквозной прогон без сети: регистрация, рукопожатие, две атомарные

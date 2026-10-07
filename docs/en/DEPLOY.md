@@ -239,6 +239,22 @@ sudo -u postgres psql -c "ALTER ROLE lacert WITH PASSWORD 'NEW_PASSWORD';"
 then update `LACERT_PG_DSN` in the env file accordingly and run
 `sudo systemctl restart lacert-gatewayd`.
 
+**PostgreSQL: "collation version mismatch".** The installer prints this warning
+three times after a system glibc upgrade: the database was created with one
+collation version and the system now provides another. Harmless for operation,
+and one command per database clears it:
+```bash
+sudo -u postgres psql -c "ALTER DATABASE postgres REFRESH COLLATION VERSION" \
+                       -c "ALTER DATABASE lacert REFRESH COLLATION VERSION"
+```
+
+**The dashboard and REST are plain HTTP, the token travels in the clear.**
+Both the browser and the board during enrollment send it, and there is no TLS
+setting for REST. Do not open port 8080 to a network you do not trust. If the
+dashboard is needed from outside, put a reverse proxy with TLS in front of it
+and keep the gateway itself reachable only from the local network where the
+boards are.
+
 **The service will not start / crashes immediately.** Look at the details:
 ```bash
 journalctl -u lacert-gatewayd -n 50 --no-pager
